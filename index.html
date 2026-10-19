@@ -145,6 +145,24 @@
     place-items: center;
   }
   .add:hover { background: var(--chrome-2); }
+  .edge-btn {
+    -webkit-app-region: no-drag;
+    app-region: no-drag;
+    flex: none;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    height: 28px;
+    margin: 0 4px 5px auto;
+    padding: 0 12px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: var(--sheet);
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .edge-btn:hover { background: var(--chrome-2); }
 
   main {
     position: fixed;
@@ -382,6 +400,10 @@
     <button class="add" id="addBtn" type="button" title="Open PDFs (Ctrl+O)" aria-label="Open PDFs">
       <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M7 1v12M1 7h12" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
     </button>
+    <button class="edge-btn" id="edgeBtn" type="button" hidden title="Open this PDF in an Edge browser tab, where Ask Copilot is available">
+      <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M8 2h4v4M12 2 6.5 7.5M10.5 8.5V11a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V4.5a1 1 0 0 1 1-1h2.5" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Open in Edge
+    </button>
   </header>
 
   <main id="stage">
@@ -460,6 +482,7 @@
   const restoreBtn = $('#restoreBtn');
   const clearBtn = $('#clearBtn');
   const fileInput = $('#fileInput');
+  const edgeBtn = $('#edgeBtn');
   const searchEl = $('#search');
 
   const CLOSE_ICON = '<svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>';
@@ -495,7 +518,8 @@
     }
 
     const id = nextId++;
-    const url = URL.createObjectURL(new Blob([file], { type: 'application/pdf' }));
+    const blob = new Blob([file], { type: 'application/pdf' });
+    const url = URL.createObjectURL(blob);
 
     const tabEl = document.createElement('div');
     tabEl.className = 'tab';
@@ -538,7 +562,7 @@
 
     stage.insertBefore(frame, dropEl);
     tabsEl.appendChild(tabEl);
-    const tab = { id, name: file.name, key, url, handle: handle || null, recentId: null, tabEl, frame };
+    const tab = { id, name: file.name, key, url, blob, edgeUrl: null, handle: handle || null, recentId: null, tabEl, frame };
     tabs.push(tab);
     activate(id);
     saveSession();
@@ -562,6 +586,8 @@
     }
     const t = findTab(id);
     document.title = t ? t.name + ' — ' + APP : APP;
+    edgeBtn.hidden = !t;
+    edgeBtn.setAttribute('aria-label', t ? 'Open ' + t.name + ' in Edge' : 'Open in Edge');
     if (t) t.tabEl.scrollIntoView({ block: 'nearest', inline: 'nearest' });
     if (onHome) renderHome();
   }
@@ -605,6 +631,19 @@
 
   homeTab.addEventListener('click', () => activate(HOME));
   homeTab.addEventListener('keydown', onTabKey);
+
+  // ---------- Open in Edge (for Ask Copilot) ----------
+
+  // Opens the current PDF in a normal Edge browser tab. That tab gets its own copy of the file,
+  // which stays available after you close the PDF in Sureshot, until Sureshot itself is closed.
+  function openActiveInEdge() {
+    const t = findTab(activeId);
+    if (!t) return;
+    if (!t.edgeUrl) t.edgeUrl = URL.createObjectURL(t.blob);
+    const win = window.open(t.edgeUrl, '_blank');
+    if (!win) toast('Edge blocked the new tab. Allow pop-ups for Sureshot PDF, then try again.');
+  }
+  edgeBtn.addEventListener('click', openActiveInEdge);
 
   // ---------- Opening files ----------
 
