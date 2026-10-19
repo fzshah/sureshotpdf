@@ -1,0 +1,582 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sureshot PDF</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" href="icons/icon-192.png">
+<meta name="theme-color" content="#EEF1F3" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#1E2328" media="(prefers-color-scheme: dark)">
+<style>
+  :root {
+    --chrome: #EEF1F3;
+    --chrome-2: #E0E5E9;
+    --sheet: #FFFFFF;
+    --stage: #D9DEE2;
+    --ink: #1C2530;
+    --ink-soft: #5B6772;
+    --line: #C9D1D8;
+    --sight: #C8102E;
+    --button-bg: #C8102E;
+    --button-ink: #FFFFFF;
+    --focus: #1B5FD6;
+    --bar-h: env(titlebar-area-height, 40px);
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --chrome: #1E2328;
+      --chrome-2: #2B3138;
+      --sheet: #343B43;
+      --stage: #15191D;
+      --ink: #E8ECEF;
+      --ink-soft: #A3AEB8;
+      --line: #46505A;
+      --sight: #FF5A6B;
+      --button-bg: #D92A40;
+      --button-ink: #FFFFFF;
+      --focus: #8AB0FF;
+      color-scheme: dark;
+    }
+  }
+
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    background: var(--chrome);
+    color: var(--ink);
+    font: 13px/1.4 "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+    overflow: hidden;
+  }
+  button { font: inherit; color: inherit; cursor: default; }
+  button:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+
+  /* Tab strip. In an installed app it sits in the title bar, next to the window buttons. */
+  .bar {
+    position: fixed;
+    top: env(titlebar-area-y, 0px);
+    left: env(titlebar-area-x, 0px);
+    width: env(titlebar-area-width, 100%);
+    height: var(--bar-h);
+    display: flex;
+    align-items: flex-end;
+    gap: 2px;
+    padding: 0 6px;
+    -webkit-app-region: drag;
+    app-region: drag;
+  }
+  .tabs {
+    display: flex;
+    align-items: flex-end;
+    gap: 2px;
+    height: 100%;
+    min-width: 0;
+    flex: 0 1 auto;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+  }
+  .tabs::-webkit-scrollbar { display: none; }
+  .tab {
+    -webkit-app-region: no-drag;
+    app-region: no-drag;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 0 1 200px;
+    min-width: 96px;
+    max-width: 220px;
+    height: calc(var(--bar-h) - 6px);
+    padding: 0 4px 0 12px;
+    border-radius: 8px 8px 0 0;
+    color: var(--ink-soft);
+    user-select: none;
+  }
+  .tab:hover { background: var(--chrome-2); }
+  .tab.active { background: var(--sheet); color: var(--ink); }
+  .tab:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+
+  /* The sight mark: hollow on background tabs, a centred dot on the tab you're looking at. */
+  .mark {
+    flex: none;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    border: 1.5px solid currentColor;
+    opacity: 0.45;
+  }
+  .tab.active .mark {
+    border-color: var(--sight);
+    background: radial-gradient(circle, var(--sight) 0 1.8px, transparent 2.4px);
+    opacity: 1;
+  }
+  .title { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .close {
+    flex: none;
+    width: 24px;
+    height: 24px;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    display: grid;
+    place-items: center;
+    opacity: 0.7;
+  }
+  .close:hover { background: var(--chrome-2); opacity: 1; }
+  .tab.active .close:hover { background: var(--chrome); }
+
+  .add {
+    -webkit-app-region: no-drag;
+    app-region: no-drag;
+    flex: none;
+    width: 30px;
+    height: 30px;
+    margin-bottom: 3px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    display: grid;
+    place-items: center;
+  }
+  .add:hover { background: var(--chrome-2); }
+
+  main {
+    position: fixed;
+    top: var(--bar-h);
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: var(--stage);
+  }
+  .frame {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    border: 0;
+    visibility: hidden;
+    background: var(--stage);
+  }
+  .frame.active { visibility: visible; }
+
+  /* Nothing open */
+  .empty {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 24px;
+    text-align: center;
+    background: var(--sheet);
+  }
+  .reticle { width: 112px; height: 112px; color: color-mix(in srgb, var(--ink-soft) 55%, transparent); margin-bottom: 8px; }
+  .reticle .dot { fill: var(--sight); }
+  .empty h1 {
+    margin: 0;
+    font: 600 24px/1.2 "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif;
+    letter-spacing: -0.01em;
+  }
+  .empty p { margin: 0; color: var(--ink-soft); max-width: 46ch; }
+  .actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 10px; }
+  .primary, .secondary {
+    min-height: 34px;
+    padding: 6px 16px;
+    border-radius: 6px;
+    font-weight: 600;
+  }
+  .primary { border: 0; background: var(--button-bg); color: var(--button-ink); }
+  .primary:hover { filter: brightness(1.08); }
+  .secondary { border: 1px solid var(--line); background: transparent; }
+  .secondary:hover { background: var(--chrome); }
+  .hint { font-size: 12px; margin-top: 18px !important; }
+
+  /* Drag-and-drop target */
+  .drop {
+    position: absolute;
+    inset: 10px;
+    z-index: 5;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    border: 2px dashed var(--sight);
+    border-radius: 14px;
+    background: color-mix(in srgb, var(--sheet) 90%, transparent);
+    font-size: 16px;
+    font-weight: 600;
+    pointer-events: none;
+  }
+  .drop .reticle { color: var(--sight); }
+
+  .toast {
+    position: fixed;
+    left: 50%;
+    bottom: 20px;
+    transform: translateX(-50%);
+    z-index: 10;
+    max-width: min(520px, calc(100% - 32px));
+    padding: 10px 14px;
+    border-radius: 8px;
+    background: var(--ink);
+    color: var(--sheet);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+  }
+</style>
+</head>
+<body>
+  <header class="bar">
+    <div class="tabs" id="tabs" role="tablist" aria-label="Open PDFs"></div>
+    <button class="add" id="addBtn" type="button" title="Open PDFs (Ctrl+O)" aria-label="Open PDFs">
+      <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M7 1v12M1 7h12" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+    </button>
+  </header>
+
+  <main id="stage">
+    <section class="empty" id="empty">
+      <svg class="reticle" viewBox="0 0 120 120" aria-hidden="true">
+        <circle cx="60" cy="60" r="42" fill="none" stroke="currentColor" stroke-width="2"/>
+        <circle cx="60" cy="60" r="22" fill="none" stroke="currentColor" stroke-width="1.5"/>
+        <path d="M60 4v26M60 90v26M4 60h26M90 60h26" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        <circle class="dot" cx="60" cy="60" r="5"/>
+      </svg>
+      <h1>No PDFs open</h1>
+      <p>Drop PDF files into this window, or choose them from your PC. Each one opens in its own tab.</p>
+      <div class="actions">
+        <button class="primary" id="chooseBtn" type="button">Choose PDFs</button>
+        <button class="secondary" id="restoreBtn" type="button" hidden>Reopen last session’s PDFs</button>
+      </div>
+      <p class="hint" id="hint"></p>
+    </section>
+
+    <div class="drop" id="drop" hidden>
+      <svg class="reticle" viewBox="0 0 120 120" aria-hidden="true">
+        <circle cx="60" cy="60" r="42" fill="none" stroke="currentColor" stroke-width="2"/>
+        <path d="M60 4v26M60 90v26M4 60h26M90 60h26" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        <circle class="dot" cx="60" cy="60" r="5"/>
+      </svg>
+      Drop to open
+    </div>
+  </main>
+
+  <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+  <input type="file" id="fileInput" accept="application/pdf,.pdf" multiple hidden>
+
+<script>
+(() => {
+  'use strict';
+
+  const APP = 'Sureshot PDF';
+  const $ = (sel) => document.querySelector(sel);
+  const tabsEl = $('#tabs');
+  const stage = $('#stage');
+  const emptyEl = $('#empty');
+  const dropEl = $('#drop');
+  const toastEl = $('#toast');
+  const restoreBtn = $('#restoreBtn');
+  const fileInput = $('#fileInput');
+
+  const CLOSE_ICON = '<svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>';
+
+  /** @type {{id:number,name:string,key:string,url:string,handle:any,tabEl:HTMLElement,frame:HTMLIFrameElement}[]} */
+  const tabs = [];
+  let activeId = null;
+  let nextId = 1;
+
+  const isPdf = (file) => !!file && (file.type === 'application/pdf' || /\.pdf$/i.test(file.name || ''));
+  const keyOf = (file) => file.name + '|' + file.size + '|' + file.lastModified;
+  const findTab = (id) => tabs.find((t) => t.id === id);
+
+  // ---------- Tabs ----------
+
+  function openFile(file, handle) {
+    if (!file) return;
+    if (!isPdf(file)) {
+      toast('Skipped ' + file.name + '. Sureshot PDF opens PDF files only.');
+      return;
+    }
+    const key = keyOf(file);
+    const existing = tabs.find((t) => t.key === key);
+    if (existing) { activate(existing.id); return; }
+
+    const id = nextId++;
+    const url = URL.createObjectURL(new Blob([file], { type: 'application/pdf' }));
+
+    const tabEl = document.createElement('div');
+    tabEl.className = 'tab';
+    tabEl.id = 'tab-' + id;
+    tabEl.title = file.name;
+    tabEl.tabIndex = -1;
+    tabEl.setAttribute('role', 'tab');
+    tabEl.setAttribute('aria-controls', 'frame-' + id);
+
+    const mark = document.createElement('span');
+    mark.className = 'mark';
+    mark.setAttribute('aria-hidden', 'true');
+
+    const title = document.createElement('span');
+    title.className = 'title';
+    title.textContent = file.name.replace(/\.pdf$/i, '');
+
+    const close = document.createElement('button');
+    close.className = 'close';
+    close.type = 'button';
+    close.tabIndex = -1;
+    close.title = 'Close';
+    close.setAttribute('aria-label', 'Close ' + file.name);
+    close.innerHTML = CLOSE_ICON;
+
+    tabEl.append(mark, title, close);
+    tabEl.addEventListener('click', (e) => { if (!e.target.closest('.close')) activate(id); });
+    tabEl.addEventListener('mousedown', (e) => { if (e.button === 1) e.preventDefault(); });
+    tabEl.addEventListener('auxclick', (e) => { if (e.button === 1) { e.preventDefault(); closeTab(id); } });
+    tabEl.addEventListener('keydown', onTabKey);
+    close.addEventListener('click', (e) => { e.stopPropagation(); closeTab(id); });
+
+    const frame = document.createElement('iframe');
+    frame.className = 'frame';
+    frame.id = 'frame-' + id;
+    frame.title = file.name;
+    frame.setAttribute('role', 'tabpanel');
+    frame.setAttribute('aria-labelledby', 'tab-' + id);
+    frame.src = url;
+
+    stage.insertBefore(frame, dropEl);
+    tabsEl.appendChild(tabEl);
+    tabs.push({ id, name: file.name, key, url, handle: handle || null, tabEl, frame });
+    activate(id);
+    saveSession();
+  }
+
+  function activate(id) {
+    activeId = id;
+    for (const t of tabs) {
+      const on = t.id === id;
+      t.tabEl.classList.toggle('active', on);
+      t.tabEl.setAttribute('aria-selected', String(on));
+      t.tabEl.tabIndex = on ? 0 : -1;
+      t.frame.classList.toggle('active', on);
+    }
+    const t = findTab(id);
+    document.title = t ? t.name + ' — ' + APP : APP;
+    if (t) t.tabEl.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    emptyEl.hidden = tabs.length > 0;
+  }
+
+  function closeTab(id) {
+    const index = tabs.findIndex((t) => t.id === id);
+    if (index < 0) return;
+    const [t] = tabs.splice(index, 1);
+    const hadFocus = t.tabEl.contains(document.activeElement);
+    t.tabEl.remove();
+    t.frame.remove();
+    setTimeout(() => URL.revokeObjectURL(t.url), 1000);
+
+    if (activeId === id) {
+      const next = tabs[Math.min(index, tabs.length - 1)];
+      activate(next ? next.id : null);
+      if (hadFocus && next) next.tabEl.focus();
+    } else {
+      emptyEl.hidden = tabs.length > 0;
+    }
+    saveSession();
+  }
+
+  function onTabKey(e) {
+    const i = tabs.findIndex((t) => t.tabEl === e.currentTarget);
+    if (i < 0) return;
+    let j = null;
+    if (e.key === 'ArrowRight') j = (i + 1) % tabs.length;
+    else if (e.key === 'ArrowLeft') j = (i - 1 + tabs.length) % tabs.length;
+    else if (e.key === 'Home') j = 0;
+    else if (e.key === 'End') j = tabs.length - 1;
+    else if (e.key === 'Delete') { e.preventDefault(); closeTab(tabs[i].id); return; }
+    if (j !== null) {
+      e.preventDefault();
+      activate(tabs[j].id);
+      tabs[j].tabEl.focus();
+    }
+  }
+
+  // ---------- Opening files ----------
+
+  async function openHandle(handle) {
+    try {
+      openFile(await handle.getFile(), handle);
+    } catch (err) {
+      toast('Couldn’t open ' + handle.name + '. ' + err.message);
+    }
+  }
+
+  async function pickFiles() {
+    if ('showOpenFilePicker' in window) {
+      let handles;
+      try {
+        handles = await window.showOpenFilePicker({
+          multiple: true,
+          types: [{ description: 'PDF files', accept: { 'application/pdf': ['.pdf'] } }]
+        });
+      } catch (err) {
+        if (err.name !== 'AbortError') toast('Couldn’t show the file picker. ' + err.message);
+        return;
+      }
+      for (const h of handles) await openHandle(h);
+    } else {
+      fileInput.value = '';
+      fileInput.click();
+    }
+  }
+
+  fileInput.addEventListener('change', () => {
+    for (const f of fileInput.files) openFile(f, null);
+  });
+  $('#addBtn').addEventListener('click', pickFiles);
+  $('#chooseBtn').addEventListener('click', pickFiles);
+
+  document.addEventListener('keydown', (e) => {
+    if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'o') {
+      e.preventDefault();
+      pickFiles();
+    }
+  });
+
+  // PDFs opened from File Explorer ("Open with > Sureshot PDF")
+  if ('launchQueue' in window) {
+    window.launchQueue.setConsumer(async (params) => {
+      if (!params.files || !params.files.length) return;
+      for (const h of params.files) {
+        if (h.kind === 'file') await openHandle(h);
+      }
+    });
+  }
+
+  // ---------- Drag and drop ----------
+
+  let dragDepth = 0;
+  const hasFiles = (e) => !!e.dataTransfer && Array.from(e.dataTransfer.types || []).includes('Files');
+
+  window.addEventListener('dragenter', (e) => {
+    if (!hasFiles(e)) return;
+    e.preventDefault();
+    dragDepth++;
+    dropEl.hidden = false;
+  });
+  window.addEventListener('dragover', (e) => {
+    if (!hasFiles(e)) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+  });
+  window.addEventListener('dragleave', (e) => {
+    if (!hasFiles(e)) return;
+    dragDepth = Math.max(0, dragDepth - 1);
+    if (dragDepth === 0) dropEl.hidden = true;
+  });
+  window.addEventListener('drop', async (e) => {
+    if (!hasFiles(e)) return;
+    e.preventDefault();
+    dragDepth = 0;
+    dropEl.hidden = true;
+
+    // Everything has to be read from the drop event before the first await.
+    const entries = Array.from(e.dataTransfer.items)
+      .filter((item) => item.kind === 'file')
+      .map((item) => ({
+        file: item.getAsFile(),
+        handle: item.getAsFileSystemHandle ? item.getAsFileSystemHandle().catch(() => null) : Promise.resolve(null)
+      }));
+
+    for (const entry of entries) {
+      const handle = await entry.handle;
+      openFile(entry.file, handle && handle.kind === 'file' ? handle : null);
+    }
+  });
+
+  // ---------- Session (reopen last session's PDFs) ----------
+
+  function idb(mode, op) {
+    return new Promise((resolve, reject) => {
+      if (!('indexedDB' in window)) { resolve(undefined); return; }
+      const open = indexedDB.open('sureshot-pdf', 1);
+      open.onupgradeneeded = () => open.result.createObjectStore('session');
+      open.onerror = () => reject(open.error);
+      open.onsuccess = () => {
+        const db = open.result;
+        const tx = db.transaction('session', mode);
+        const request = op(tx.objectStore('session'));
+        tx.oncomplete = () => { db.close(); resolve(request.result); };
+        tx.onerror = tx.onabort = () => { db.close(); reject(tx.error); };
+      };
+    });
+  }
+
+  let saveTimer = null;
+  function saveSession() {
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(() => {
+      const handles = tabs.filter((t) => t.handle).map((t) => t.handle);
+      idb('readwrite', (store) => store.put(handles, 'handles')).catch(() => {});
+    }, 300);
+  }
+
+  let savedHandles = [];
+  function updateRestoreButton() {
+    const n = savedHandles.length;
+    restoreBtn.hidden = n === 0;
+    restoreBtn.textContent = n === 1 ? 'Reopen last session’s PDF' : 'Reopen last session’s ' + n + ' PDFs';
+  }
+
+  restoreBtn.addEventListener('click', async () => {
+    const list = savedHandles;
+    savedHandles = [];
+    updateRestoreButton();
+    let failed = 0;
+    for (const handle of list) {
+      try {
+        let permission = await handle.queryPermission({ mode: 'read' });
+        if (permission !== 'granted') permission = await handle.requestPermission({ mode: 'read' });
+        if (permission !== 'granted') { failed++; continue; }
+        openFile(await handle.getFile(), handle);
+      } catch (err) {
+        failed++;
+      }
+    }
+    if (failed === 1) toast('1 PDF couldn’t be reopened. It may have been moved, renamed or deleted.');
+    else if (failed > 1) toast(failed + ' PDFs couldn’t be reopened. They may have been moved, renamed or deleted.');
+  });
+
+  idb('readonly', (store) => store.get('handles'))
+    .then((handles) => {
+      savedHandles = Array.isArray(handles) ? handles : [];
+      updateRestoreButton();
+    })
+    .catch(() => {});
+
+  // ---------- Misc ----------
+
+  let toastTimer = null;
+  function toast(message) {
+    toastEl.textContent = message;
+    toastEl.hidden = false;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { toastEl.hidden = true; }, 6000);
+  }
+
+  const installed = window.matchMedia('(display-mode: standalone), (display-mode: window-controls-overlay)').matches;
+  $('#hint').textContent = installed
+    ? 'To open a PDF from File Explorer, right-click it, choose Open with, then Sureshot PDF.'
+    : 'Install Sureshot PDF from the app icon in Edge’s address bar to open PDFs straight from File Explorer.';
+
+  if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  }
+
+  activate(null);
+})();
+</script>
+</body>
+</html>

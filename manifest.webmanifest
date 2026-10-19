@@ -1,0 +1,25 @@
+{
+  "id": "./",
+  "name": "Sureshot PDF",
+  "short_name": "Sureshot PDF",
+  "description": "A tabbed PDF viewer that uses Microsoft Edge's built-in PDF tools.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone"],
+  "background_color": "#EEF1F3",
+  "theme_color": "#EEF1F3",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "file_handlers": [
+    {
+      "action": "./",
+      "accept": { "application/pdf": [".pdf"] },
+      "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    }
+  ],
+  "launch_handler": { "client_mode": ["focus-existing", "auto"] }
+}
