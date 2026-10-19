@@ -21,6 +21,7 @@
     --button-bg: #C8102E;
     --button-ink: #FFFFFF;
     --focus: #1B5FD6;
+    --star: #B87800;
     --bar-h: env(titlebar-area-height, 40px);
     color-scheme: light;
   }
@@ -37,6 +38,7 @@
       --button-bg: #D92A40;
       --button-ink: #FFFFFF;
       --focus: #8AB0FF;
+      --star: #F2B53A;
       color-scheme: dark;
     }
   }
@@ -163,16 +165,60 @@
   }
   .frame.active { visibility: visible; }
 
-  /* ---------- Home: recent files ---------- */
-  .home-view { position: absolute; inset: 0; overflow-y: auto; background: var(--sheet); }
-  .home-inner { max-width: 780px; margin: 0 auto; padding: 40px 28px 48px; }
-  .home-head { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 18px; }
-  .home-head h1 {
-    flex: 1 1 auto;
+  /* ---------- Home: sidebar + grid ---------- */
+  .home-view {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    grid-template-columns: 224px minmax(0, 1fr);
+    background: var(--sheet);
+  }
+  .side {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 20px 10px 16px;
+    background: var(--chrome);
+    border-right: 1px solid var(--line);
+  }
+  .nav { display: flex; flex-direction: column; gap: 1px; }
+  .nav-sep { height: 1px; margin: 10px 8px; background: var(--line); }
+  .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    min-height: 34px;
+    padding: 0 10px;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--ink-soft);
+    text-align: left;
+    white-space: nowrap;
+  }
+  .nav-item:hover { background: var(--chrome-2); color: var(--ink); }
+  .nav-item[aria-current="true"] { background: var(--sheet); color: var(--ink); font-weight: 600; box-shadow: inset 3px 0 0 var(--sight); }
+  .nav-icon { flex: none; width: 16px; height: 16px; display: grid; place-items: center; }
+  .nav-icon svg .fill { fill: none; }
+  .nav-label { flex: 1; overflow: hidden; text-overflow: ellipsis; }
+  .nav-count { font-size: 12px; font-variant-numeric: tabular-nums; color: var(--ink-soft); font-weight: 400; }
+  .side-foot { margin-top: auto; padding: 20px 8px 0; font-size: 12px; color: var(--ink-soft); }
+  .side-foot p { margin: 0 0 10px; }
+  .link-btn { border: 0; padding: 0; background: none; color: var(--ink-soft); text-decoration: underline; font-size: 12px; }
+  .link-btn:hover { color: var(--ink); }
+
+  .content { min-width: 0; min-height: 0; overflow-y: auto; padding: 28px 32px 48px; }
+  .content-head { display: flex; align-items: flex-end; flex-wrap: wrap; gap: 12px 16px; margin-bottom: 16px; }
+  .content-head .titles { flex: 1 1 auto; min-width: 0; }
+  .content-head h1 {
     margin: 0;
     font: 600 26px/1.2 "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif;
     letter-spacing: -0.01em;
   }
+  .content-head p { margin: 2px 0 0; color: var(--ink-soft); }
+  .head-actions { display: flex; flex-wrap: wrap; gap: 8px; }
   .primary, .secondary {
     min-height: 34px;
     padding: 6px 16px;
@@ -184,11 +230,11 @@
   .secondary { border: 1px solid var(--line); background: transparent; }
   .secondary:hover { background: var(--chrome); }
 
-  .search { position: relative; margin-bottom: 8px; }
+  .search { position: relative; margin-bottom: 20px; max-width: 420px; }
   .search svg { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); color: var(--ink-soft); pointer-events: none; }
   .search input {
     width: 100%;
-    height: 36px;
+    height: 34px;
     padding: 0 12px 0 34px;
     border: 1px solid var(--line);
     border-radius: 6px;
@@ -196,78 +242,96 @@
   }
   .search input::placeholder { color: var(--ink-soft); }
 
-  .group h2 {
-    margin: 22px 0 4px;
-    padding: 0 10px;
-    font-size: 12px;
-    font-weight: 600;
-    color: var(--ink-soft);
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(188px, 1fr)); gap: 14px; }
+  .card {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--sheet);
+    overflow: hidden;
   }
-  .rows { list-style: none; margin: 0; padding: 0; }
-  .row { display: flex; align-items: center; border-radius: 8px; }
-  .row:hover { background: var(--chrome); }
-  .row-open {
-    flex: 1;
-    min-width: 0;
-    display: grid;
-    grid-template-columns: 22px minmax(0, 1fr) auto auto;
-    align-items: center;
-    gap: 14px;
-    padding: 8px 10px;
+  .card:hover { border-color: var(--ink-soft); }
+  .card.is-pinned { border-color: var(--ink-soft); }
+  .card-open {
+    display: flex;
+    flex-direction: column;
+    padding: 0;
     border: 0;
-    border-radius: 8px;
     background: transparent;
     text-align: left;
   }
-  .doc { color: var(--ink-soft); display: grid; place-items: center; }
-  .row-name { display: block; font-size: 14px; font-weight: 600; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-  .row-meta { display: block; font-size: 12px; color: var(--ink-soft); }
-  .row-size { font-size: 12px; color: var(--ink-soft); font-variant-numeric: tabular-nums; text-align: right; min-width: 56px; }
-  .row-state { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: var(--sight); min-width: 64px; }
-  .row-remove {
-    flex: none;
+  .card-open:focus-visible { outline-offset: -2px; }
+  .card-art {
+    position: relative;
+    height: 104px;
+    display: grid;
+    place-items: center;
+    background: var(--chrome);
+    color: var(--ink-soft);
+  }
+  .card-badge {
+    position: absolute;
+    left: 8px;
+    top: 8px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 2px 8px 2px 6px;
+    border-radius: 999px;
+    background: var(--sheet);
+    color: var(--sight);
+    font-size: 11px;
+    font-weight: 600;
+  }
+  .card-body { padding: 10px 12px 2px; }
+  .card-name {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    font-size: 13.5px;
+    font-weight: 600;
+    line-height: 1.3;
+    word-break: break-word;
+  }
+  .card-meta { display: flex; justify-content: space-between; gap: 10px; margin-top: 3px; font-size: 12px; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+  .card-actions { display: flex; justify-content: flex-end; gap: 2px; padding: 2px 6px 6px; }
+  .act {
     width: 30px;
     height: 30px;
-    margin-right: 6px;
     border: 0;
     border-radius: 6px;
     background: transparent;
     color: var(--ink-soft);
     display: grid;
     place-items: center;
-    opacity: 0;
   }
-  .row:hover .row-remove, .row:focus-within .row-remove { opacity: 1; }
-  .row-remove:hover { background: var(--chrome-2); color: var(--ink); }
-  .no-match { padding: 24px 10px; color: var(--ink-soft); }
+  .act:hover { background: var(--chrome); color: var(--ink); }
+  .act[aria-pressed="true"] { color: var(--ink); }
+  .act.fav[aria-pressed="true"] { color: var(--star); }
+  .act svg .fill { fill: none; }
+  .act[aria-pressed="true"] svg .fill { fill: currentColor; }
 
-  .home-foot {
-    display: flex;
-    justify-content: space-between;
-    align-items: baseline;
-    flex-wrap: wrap;
-    gap: 12px 24px;
-    margin-top: 32px;
-    padding-top: 16px;
-    border-top: 1px solid var(--line);
-    font-size: 12px;
-    color: var(--ink-soft);
-  }
-  .home-foot p { margin: 0; max-width: 60ch; }
-  .link-btn { border: 0; padding: 0; background: none; color: var(--ink-soft); text-decoration: underline; font-size: 12px; }
-  .link-btn:hover { color: var(--ink); }
+  .view-empty { padding: 48px 8px; color: var(--ink-soft); max-width: 52ch; }
+  .view-empty h2 { margin: 0 0 6px; color: var(--ink); font: 600 17px/1.3 "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif; }
+  .view-empty p { margin: 0; }
 
-  /* First run: nothing in Recent yet */
-  .first-run { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 56px 16px 24px; text-align: center; }
+  .first-run { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 48px 16px 24px; text-align: center; }
   .first-run p { margin: 0; color: var(--ink-soft); max-width: 46ch; }
   .first-run h2 { margin: 0; font: 600 20px/1.25 "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif; }
   .reticle { width: 104px; height: 104px; color: color-mix(in srgb, var(--ink-soft) 55%, transparent); margin-bottom: 6px; }
   .reticle .dot { fill: var(--sight); }
 
-  @media (max-width: 560px) {
-    .home-inner { padding: 28px 16px 40px; }
-    .row-size { display: none; }
-    .row-open { grid-template-columns: 22px minmax(0, 1fr) auto; }
+  @media (max-width: 720px) {
+    .home-view { grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1fr); }
+    .side { flex-direction: row; padding: 8px; border-right: 0; border-bottom: 1px solid var(--line); overflow-x: auto; overflow-y: hidden; }
+    .nav { flex-direction: row; }
+    .nav-sep { width: 1px; height: auto; margin: 6px 4px; }
+    .nav-item { width: auto; }
+    .side-foot { display: none; }
+    .content { padding: 20px 16px 40px; }
   }
 
   /* ---------- Drag and drop ---------- */
@@ -301,7 +365,12 @@
     background: var(--ink);
     color: var(--sheet);
     box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+    display: flex;
+    align-items: center;
+    gap: 14px;
   }
+  .toast-btn { flex: none; border: 0; padding: 4px 8px; border-radius: 4px; background: transparent; color: inherit; font-weight: 600; text-decoration: underline; }
+  .toast-btn:hover { background: color-mix(in srgb, var(--sheet) 15%, transparent); }
 </style>
 </head>
 <body>
@@ -317,23 +386,36 @@
 
   <main id="stage">
     <section class="home-view" id="home" role="tabpanel" aria-labelledby="tab-home">
-      <div class="home-inner">
-        <div class="home-head">
-          <h1>Recent</h1>
-          <button class="secondary" id="restoreBtn" type="button" hidden>Reopen last session</button>
-          <button class="primary" id="chooseBtn" type="button">Choose PDFs</button>
+      <aside class="side">
+        <nav class="nav" id="nav" aria-label="Recent PDFs"></nav>
+        <div class="side-foot">
+          <p id="hint"></p>
+          <button class="link-btn" id="clearBtn" type="button" hidden>Clear the Recent list</button>
         </div>
+      </aside>
 
-        <div id="recentFull" hidden>
-          <div class="search" id="searchWrap" hidden>
-            <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><circle cx="6" cy="6" r="4.5" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="m9.5 9.5 3 3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
-            <label class="sr-only" for="search">Find a recent PDF</label>
-            <input id="search" type="search" placeholder="Find a recent PDF" autocomplete="off">
+      <div class="content">
+        <div class="content-head">
+          <div class="titles">
+            <h1 id="viewTitle">All recent</h1>
+            <p id="viewCount"></p>
           </div>
-          <div id="groups"></div>
+          <div class="head-actions">
+            <button class="secondary" id="restoreBtn" type="button" hidden>Reopen last session</button>
+            <button class="primary" id="chooseBtn" type="button">Choose PDFs</button>
+          </div>
         </div>
 
-        <div class="first-run" id="recentEmpty">
+        <div class="search" id="searchWrap" hidden>
+          <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><circle cx="6" cy="6" r="4.5" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="m9.5 9.5 3 3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+          <label class="sr-only" for="search">Search all recent PDFs</label>
+          <input id="search" type="search" placeholder="Search all recent PDFs" autocomplete="off">
+        </div>
+
+        <div class="grid" id="grid"></div>
+        <div class="view-empty" id="viewEmpty" hidden><h2></h2><p></p></div>
+
+        <div class="first-run" id="firstRun" hidden>
           <svg class="reticle" viewBox="0 0 120 120" aria-hidden="true">
             <circle cx="60" cy="60" r="42" fill="none" stroke="currentColor" stroke-width="2"/>
             <circle cx="60" cy="60" r="22" fill="none" stroke="currentColor" stroke-width="1.5"/>
@@ -341,12 +423,7 @@
             <circle class="dot" cx="60" cy="60" r="5"/>
           </svg>
           <h2>No recent PDFs yet</h2>
-          <p>PDFs you open will be listed here, so you can get back to any of them with one click. You can also drop PDF files anywhere in this window.</p>
-        </div>
-
-        <div class="home-foot">
-          <p id="hint"></p>
-          <button class="link-btn" id="clearBtn" type="button" hidden>Clear the Recent list</button>
+          <p>PDFs you open will appear here, so you can get back to any of them with one click. You can also drop PDF files anywhere in this window.</p>
         </div>
       </div>
     </section>
@@ -361,7 +438,7 @@
     </div>
   </main>
 
-  <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+  <div class="toast" id="toast" role="status" aria-live="polite" hidden><span id="toastText"></span><button class="toast-btn" id="toastBtn" type="button" hidden></button></div>
   <input type="file" id="fileInput" accept="application/pdf,.pdf" multiple hidden>
 
 <script>
@@ -383,11 +460,9 @@
   const restoreBtn = $('#restoreBtn');
   const clearBtn = $('#clearBtn');
   const fileInput = $('#fileInput');
-  const groupsEl = $('#groups');
   const searchEl = $('#search');
 
   const CLOSE_ICON = '<svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>';
-  const DOC_ICON = '<svg width="18" height="22" viewBox="0 0 18 22" aria-hidden="true"><path d="M2.5 1.5h8.5l4.5 4.5v14a.5.5 0 0 1-.5.5h-12.5a.5.5 0 0 1-.5-.5V2a.5.5 0 0 1 .5-.5Z" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M11 1.5V6h4.5" fill="none" stroke="currentColor" stroke-width="1.3"/></svg>';
 
   // Open tabs: {id, name, key, url, handle, recentId, tabEl, frame}
   const tabs = [];
@@ -667,6 +742,16 @@
 
   // ---------- Recent ----------
 
+  // Pinned and favourite files are never dropped; the rest are capped at MAX_RECENTS.
+  function trimRecents() {
+    let others = 0;
+    recents = recents.filter((r) => {
+      if (r.pinned || r.favourite) return true;
+      others++;
+      return others <= MAX_RECENTS;
+    });
+  }
+
   async function rememberRecent(handle, file) {
     await ready;
     let entry = null;
@@ -675,20 +760,42 @@
         if (await r.handle.isSameEntry(handle)) { entry = r; break; }
       } catch (err) { /* stale handle; ignore */ }
     }
-    if (!entry) entry = { id: 'r' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7) };
+    if (!entry) entry = { id: 'r' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7), pinned: false, favourite: false };
     entry.handle = handle;
     entry.name = file.name;
     entry.size = file.size;
     entry.lastOpened = Date.now();
-    recents = [entry].concat(recents.filter((r) => r !== entry)).slice(0, MAX_RECENTS);
+    recents = [entry].concat(recents.filter((r) => r !== entry));
+    trimRecents();
     store('recents', recents);
     return entry.id;
   }
 
-  function removeRecent(id) {
-    recents = recents.filter((r) => r.id !== id);
+  function removeRecent(id, offerUndo) {
+    const index = recents.findIndex((r) => r.id === id);
+    if (index < 0) return;
+    const [entry] = recents.splice(index, 1);
     store('recents', recents);
     renderHome();
+    if (offerUndo) {
+      toast('Removed ' + entry.name + ' from the list. The file itself wasn’t deleted.', 'Undo', () => {
+        recents.splice(Math.min(index, recents.length), 0, entry);
+        store('recents', recents);
+        renderHome();
+      });
+    }
+  }
+
+  function toggleFlag(id, flag) {
+    const entry = recents.find((r) => r.id === id);
+    if (!entry) return;
+    entry[flag] = !entry[flag];
+    if (flag === 'pinned') entry.pinnedAt = entry.pinned ? Date.now() : undefined;
+    trimRecents();
+    store('recents', recents);
+    renderHome();
+    const btn = document.querySelector('.act.' + (flag === 'pinned' ? 'pin' : 'fav') + '[data-id="' + id + '"]');
+    if (btn) btn.focus();
   }
 
   async function openRecent(id) {
@@ -715,39 +822,44 @@
       await openAndRemember(file, entry.handle);
     } catch (err) {
       if (err && err.name === 'NotFoundError') {
-        removeRecent(id);
-        toast(entry.name + ' was moved, renamed or deleted, so it’s been removed from Recent.');
+        removeRecent(id, false);
+        toast(entry.name + ' was moved, renamed or deleted, so it’s been removed from the list.');
       } else {
         toast('Couldn’t open ' + entry.name + '. ' + (err && err.message ? err.message : ''));
       }
     }
   }
 
-  // ---------- Home rendering ----------
+  // ---------- Date buckets ----------
 
   function startOfDay(time) {
     const d = new Date(time);
     d.setHours(0, 0, 0, 0);
-    return d.getTime();
+    return d;
   }
-  function daysAgo(time) {
-    return Math.round((startOfDay(Date.now()) - startOfDay(time)) / DAY);
-  }
-  function groupLabel(time) {
-    const d = daysAgo(time);
-    if (d <= 0) return 'Today';
-    if (d === 1) return 'Yesterday';
-    if (d < 7) return 'Last 7 days';
-    return 'Older';
+  function bucketOf(time) {
+    const today = startOfDay(Date.now());
+    const yesterday = new Date(today); yesterday.setDate(today.getDate() - 1);
+    const weekStart = new Date(today); weekStart.setDate(today.getDate() - ((today.getDay() + 6) % 7)); // Monday
+    const lastWeekStart = new Date(weekStart); lastWeekStart.setDate(weekStart.getDate() - 7);
+    const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+    if (time >= today.getTime()) return 'today';
+    if (time >= yesterday.getTime()) return 'yesterday';
+    if (time >= weekStart.getTime()) return 'thisweek';
+    if (time >= lastWeekStart.getTime()) return 'lastweek';
+    if (time >= monthStart.getTime()) return 'thismonth';
+    return 'older';
   }
   function whenText(time) {
     const date = new Date(time);
     const clock = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    const d = daysAgo(time);
-    if (d <= 1) return 'Opened at ' + clock;
-    if (d < 7) return 'Opened ' + date.toLocaleDateString([], { weekday: 'long' }) + ' at ' + clock;
+    const bucket = bucketOf(time);
+    if (bucket === 'today') return 'Today, ' + clock;
+    if (bucket === 'yesterday') return 'Yesterday, ' + clock;
+    const days = Math.round((startOfDay(Date.now()) - startOfDay(time)) / DAY);
+    if (days < 7) return date.toLocaleDateString([], { weekday: 'long' }) + ', ' + clock;
     const sameYear = date.getFullYear() === new Date().getFullYear();
-    return 'Opened ' + date.toLocaleDateString([], sameYear ? { day: 'numeric', month: 'short' } : { day: 'numeric', month: 'short', year: 'numeric' });
+    return date.toLocaleDateString([], sameYear ? { day: 'numeric', month: 'short' } : { day: 'numeric', month: 'short', year: 'numeric' });
   }
   function sizeText(bytes) {
     if (typeof bytes !== 'number') return '';
@@ -755,113 +867,218 @@
     return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
   }
 
+  // ---------- Home rendering ----------
+
+  const ICONS = {
+    pin: '<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path class="fill" d="M9.8 1.8 14.2 6.2 12.4 6.9 10.1 9.2 10.4 12.3 9.6 13.1 6.9 10.4 6.9 10.4 2.9 14.4 1.6 14.4 1.6 13.1 5.6 9.1 2.9 6.4 3.7 5.6 6.8 5.9 9.1 3.6Z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>',
+    star: '<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path class="fill" d="m8 1.7 1.9 4 4.3.5-3.2 3 .9 4.3L8 11.3l-3.9 2.2.9-4.3-3.2-3 4.3-.5Z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>',
+    remove: '<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>',
+    all: '<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M8 4.6V8l2.4 1.5" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>',
+    day: '<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><rect x="2" y="3" width="12" height="11" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M2 6.5h12M5.5 1.5v3M10.5 1.5v3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>',
+    bigDoc: '<svg width="42" height="52" viewBox="0 0 42 52" aria-hidden="true"><path d="M5 2h22l11 11v35a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2Z" fill="var(--sheet)" stroke="currentColor" stroke-width="1.6"/><path d="M27 2v11h11" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M10 24h20M10 30h20M10 36h13" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" opacity=".55"/></svg>'
+  };
+
+  const VIEWS = [
+    { id: 'pinned', label: 'Pinned', icon: 'pin', always: true, test: (r) => r.pinned,
+      empty: ['Nothing pinned yet', 'Pin a PDF to keep it at the top of every list. Pinned PDFs are never dropped from Recent.'] },
+    { id: 'favourites', label: 'Favourites', icon: 'star', always: true, test: (r) => r.favourite,
+      empty: ['No favourites yet', 'Star a PDF to collect it here. Favourites are never dropped from Recent.'] },
+    { sep: true },
+    { id: 'all', label: 'All recent', icon: 'all', always: true, test: () => true,
+      empty: ['No recent PDFs', 'PDFs you open will appear here.'] },
+    { id: 'today', label: 'Today', icon: 'day', test: (r) => bucketOf(r.lastOpened) === 'today' },
+    { id: 'yesterday', label: 'Yesterday', icon: 'day', test: (r) => bucketOf(r.lastOpened) === 'yesterday' },
+    { id: 'thisweek', label: 'This week', icon: 'day', test: (r) => bucketOf(r.lastOpened) === 'thisweek' },
+    { id: 'lastweek', label: 'Last week', icon: 'day', test: (r) => bucketOf(r.lastOpened) === 'lastweek' },
+    { id: 'thismonth', label: 'This month', icon: 'day', test: (r) => bucketOf(r.lastOpened) === 'thismonth' },
+    { id: 'older', label: 'Older', icon: 'day', test: (r) => bucketOf(r.lastOpened) === 'older' }
+  ];
+  const viewById = (id) => VIEWS.find((v) => v.id === id);
+
+  let currentView = 'all';
+  try { const saved = localStorage.getItem('sureshot.view'); if (saved && viewById(saved)) currentView = saved; } catch (err) { /* ignore */ }
+
+  function setView(id) {
+    currentView = id;
+    try { localStorage.setItem('sureshot.view', id); } catch (err) { /* ignore */ }
+    if (searchEl.value) searchEl.value = '';
+    renderHome();
+  }
+
+  // Pinned first, then most recently opened.
+  const byPinThenRecent = (a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0) || b.lastOpened - a.lastOpened;
+
+  function renderNav() {
+    const nav = $('#nav');
+    nav.replaceChildren();
+    for (const v of VIEWS) {
+      if (v.sep) {
+        const sep = document.createElement('div');
+        sep.className = 'nav-sep';
+        sep.setAttribute('role', 'separator');
+        nav.appendChild(sep);
+        continue;
+      }
+      const count = recents.filter(v.test).length;
+      if (!v.always && count === 0 && currentView !== v.id) continue;
+
+      const item = document.createElement('button');
+      item.type = 'button';
+      item.className = 'nav-item';
+      item.dataset.view = v.id;
+      if (v.id === currentView && !searchEl.value.trim()) item.setAttribute('aria-current', 'true');
+
+      const icon = document.createElement('span');
+      icon.className = 'nav-icon';
+      icon.innerHTML = ICONS[v.icon];
+      const label = document.createElement('span');
+      label.className = 'nav-label';
+      label.textContent = v.label;
+      const num = document.createElement('span');
+      num.className = 'nav-count';
+      num.textContent = count ? String(count) : '';
+      item.append(icon, label, num);
+      nav.appendChild(item);
+    }
+  }
+
+  function makeCard(r, openIds) {
+    const card = document.createElement('article');
+    card.className = 'card' + (r.pinned ? ' is-pinned' : '');
+
+    const open = document.createElement('button');
+    open.type = 'button';
+    open.className = 'card-open';
+    open.dataset.id = r.id;
+    open.title = 'Open ' + r.name;
+
+    const art = document.createElement('span');
+    art.className = 'card-art';
+    art.innerHTML = ICONS.bigDoc;
+    if (openIds.has(r.id)) {
+      const badge = document.createElement('span');
+      badge.className = 'card-badge';
+      const mark = document.createElement('span');
+      mark.className = 'mark on';
+      mark.setAttribute('aria-hidden', 'true');
+      badge.append(mark, document.createTextNode('In a tab'));
+      art.appendChild(badge);
+    }
+
+    const body = document.createElement('span');
+    body.className = 'card-body';
+    const name = document.createElement('span');
+    name.className = 'card-name';
+    name.textContent = r.name.replace(/\.pdf$/i, '');
+    const meta = document.createElement('span');
+    meta.className = 'card-meta';
+    const when = document.createElement('span');
+    when.textContent = whenText(r.lastOpened);
+    const size = document.createElement('span');
+    size.textContent = sizeText(r.size);
+    meta.append(when, size);
+    body.append(name, meta);
+    open.append(art, body);
+
+    const actions = document.createElement('div');
+    actions.className = 'card-actions';
+    const mk = (cls, icon, pressed, onLabel, offLabel) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'act ' + cls;
+      b.dataset.id = r.id;
+      if (pressed !== null) b.setAttribute('aria-pressed', String(pressed));
+      const text = pressed ? onLabel : offLabel;
+      b.title = text;
+      b.setAttribute('aria-label', text + ': ' + r.name);
+      b.innerHTML = ICONS[icon];
+      return b;
+    };
+    actions.append(
+      mk('pin', 'pin', !!r.pinned, 'Unpin', 'Pin'),
+      mk('fav', 'star', !!r.favourite, 'Remove from favourites', 'Add to favourites'),
+      mk('remove', 'remove', null, '', 'Remove from list')
+    );
+    card.append(open, actions);
+    return card;
+  }
+
   function renderHome() {
     const hasRecents = recents.length > 0;
-    $('#recentFull').hidden = !hasRecents;
-    $('#recentEmpty').hidden = hasRecents;
-    $('#searchWrap').hidden = recents.length <= 6;
+    const query = searchEl.value.trim();
+    renderNav();
+
+    $('#firstRun').hidden = hasRecents;
+    $('#searchWrap').hidden = !hasRecents;
     clearBtn.hidden = !hasRecents;
 
     const n = savedSession.length;
     restoreBtn.hidden = n === 0 || tabs.length > 0;
     restoreBtn.textContent = n === 1 ? 'Reopen last session’s PDF' : 'Reopen last session’s ' + n + ' PDFs';
 
-    const query = searchEl.value.trim().toLowerCase();
-    const visible = query ? recents.filter((r) => r.name.toLowerCase().includes(query)) : recents;
-
-    groupsEl.replaceChildren();
-    if (hasRecents && visible.length === 0) {
-      const p = document.createElement('p');
-      p.className = 'no-match';
-      p.textContent = 'No recent PDFs match “' + searchEl.value.trim() + '”.';
-      groupsEl.appendChild(p);
-      return;
+    const view = viewById(currentView) || viewById('all');
+    let items;
+    if (query) {
+      const q = query.toLowerCase();
+      items = recents.filter((r) => r.name.toLowerCase().includes(q));
+      $('#viewTitle').textContent = 'Search results';
+    } else {
+      items = recents.filter(view.test);
+      $('#viewTitle').textContent = view.label;
     }
+    items.sort(byPinThenRecent);
+    $('#viewCount').textContent = hasRecents ? (items.length === 1 ? '1 PDF' : items.length + ' PDFs') : '';
 
+    const grid = $('#grid');
+    grid.replaceChildren();
     const openIds = new Set(tabs.map((t) => t.recentId).filter(Boolean));
-    const groups = new Map();
-    for (const r of visible) {
-      const label = groupLabel(r.lastOpened);
-      if (!groups.has(label)) groups.set(label, []);
-      groups.get(label).push(r);
-    }
+    for (const r of items) grid.appendChild(makeCard(r, openIds));
 
-    for (const [label, items] of groups) {
-      const section = document.createElement('section');
-      section.className = 'group';
-      const h2 = document.createElement('h2');
-      h2.textContent = label;
-      const ul = document.createElement('ul');
-      ul.className = 'rows';
-
-      for (const r of items) {
-        const li = document.createElement('li');
-        li.className = 'row';
-
-        const openBtn = document.createElement('button');
-        openBtn.type = 'button';
-        openBtn.className = 'row-open';
-        openBtn.dataset.id = r.id;
-        openBtn.title = 'Open ' + r.name;
-
-        const doc = document.createElement('span');
-        doc.className = 'doc';
-        doc.innerHTML = DOC_ICON;
-
-        const text = document.createElement('span');
-        const name = document.createElement('span');
-        name.className = 'row-name';
-        name.textContent = r.name.replace(/\.pdf$/i, '');
-        const meta = document.createElement('span');
-        meta.className = 'row-meta';
-        meta.textContent = whenText(r.lastOpened);
-        text.append(name, meta);
-
-        const size = document.createElement('span');
-        size.className = 'row-size';
-        size.textContent = sizeText(r.size);
-
-        const state = document.createElement('span');
-        state.className = 'row-state';
-        if (openIds.has(r.id)) {
-          const mark = document.createElement('span');
-          mark.className = 'mark on';
-          mark.setAttribute('aria-hidden', 'true');
-          state.append(mark, document.createTextNode('In a tab'));
-        }
-
-        openBtn.append(doc, text, size, state);
-
-        const remove = document.createElement('button');
-        remove.type = 'button';
-        remove.className = 'row-remove';
-        remove.dataset.id = r.id;
-        remove.title = 'Remove from Recent';
-        remove.setAttribute('aria-label', 'Remove ' + r.name + ' from Recent');
-        remove.innerHTML = CLOSE_ICON;
-
-        li.append(openBtn, remove);
-        ul.appendChild(li);
-      }
-      section.append(h2, ul);
-      groupsEl.appendChild(section);
+    const emptyBox = $('#viewEmpty');
+    emptyBox.hidden = !hasRecents || items.length > 0;
+    if (!emptyBox.hidden) {
+      const [title, text] = query
+        ? ['No matches', 'No recent PDFs have “' + query + '” in their name.']
+        : (view.empty || ['Nothing here', 'No PDFs were opened in this period.']);
+      emptyBox.querySelector('h2').textContent = title;
+      emptyBox.querySelector('p').textContent = text;
     }
   }
 
-  groupsEl.addEventListener('click', (e) => {
-    const remove = e.target.closest('.row-remove');
-    if (remove) { removeRecent(remove.dataset.id); return; }
-    const open = e.target.closest('.row-open');
+  $('#nav').addEventListener('click', (e) => {
+    const item = e.target.closest('.nav-item');
+    if (item) setView(item.dataset.view);
+  });
+
+  $('#grid').addEventListener('click', (e) => {
+    const act = e.target.closest('.act');
+    if (act) {
+      const id = act.dataset.id;
+      if (act.classList.contains('pin')) toggleFlag(id, 'pinned');
+      else if (act.classList.contains('fav')) toggleFlag(id, 'favourite');
+      else if (act.classList.contains('remove')) removeRecent(id, true);
+      return;
+    }
+    const open = e.target.closest('.card-open');
     if (open) openRecent(open.dataset.id);
   });
+  $('#grid').addEventListener('auxclick', (e) => {
+    const open = e.target.closest('.card-open');
+    if (open && e.button === 1) { e.preventDefault(); openRecent(open.dataset.id); }
+  });
+
   searchEl.addEventListener('input', renderHome);
   searchEl.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && searchEl.value) { searchEl.value = ''; renderHome(); }
   });
 
   clearBtn.addEventListener('click', () => {
-    if (!window.confirm('Clear the Recent list? Your PDF files won’t be deleted.')) return;
-    recents = [];
+    const keep = recents.filter((r) => r.pinned || r.favourite).length;
+    const message = keep
+      ? 'Clear the Recent list? Your ' + keep + ' pinned and favourite PDFs will stay. No files will be deleted.'
+      : 'Clear the Recent list? No files will be deleted.';
+    if (!window.confirm(message)) return;
+    recents = recents.filter((r) => r.pinned || r.favourite);
     store('recents', recents);
     searchEl.value = '';
     renderHome();
@@ -888,17 +1105,29 @@
 
   // ---------- Misc ----------
 
+  const toastText = $('#toastText');
+  const toastBtn = $('#toastBtn');
   let toastTimer = null;
-  function toast(message) {
-    toastEl.textContent = message;
+  let toastAction = null;
+  function toast(message, actionLabel, action) {
+    toastText.textContent = message;
+    toastAction = action || null;
+    toastBtn.hidden = !action;
+    toastBtn.textContent = actionLabel || '';
     toastEl.hidden = false;
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => { toastEl.hidden = true; }, 6000);
+    toastTimer = setTimeout(() => { toastEl.hidden = true; toastAction = null; }, action ? 8000 : 6000);
   }
+  toastBtn.addEventListener('click', () => {
+    const action = toastAction;
+    toastAction = null;
+    toastEl.hidden = true;
+    if (action) action();
+  });
 
   const installed = window.matchMedia('(display-mode: standalone), (display-mode: window-controls-overlay)').matches;
   $('#hint').textContent = installed
-    ? 'To open a PDF from File Explorer, right-click it, choose Open with, then Sureshot PDF. The Recent list is stored only on this PC.'
+    ? 'Open a PDF from File Explorer with right-click, Open with, Sureshot PDF. This list is stored only on this PC.'
     : 'Install Sureshot PDF from the app icon in Edge’s address bar to open PDFs straight from File Explorer.';
 
   if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
@@ -907,7 +1136,8 @@
 
   activate(HOME);
   const ready = Promise.all([load('recents').catch(() => null), load('handles').catch(() => null)]).then(([r, h]) => {
-    recents = Array.isArray(r) ? r.filter((x) => x && x.handle && x.id).slice(0, MAX_RECENTS) : [];
+    recents = Array.isArray(r) ? r.filter((x) => x && x.handle && x.id) : [];
+    trimRecents();
     savedSession = Array.isArray(h) ? h : [];
     if (activeId === HOME) renderHome();
   });
