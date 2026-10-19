@@ -22,6 +22,7 @@
     --button-ink: #FFFFFF;
     --focus: #1B5FD6;
     --star: #B87800;
+    --shadow: rgba(16, 24, 32, 0.18);
     --bar-h: env(titlebar-area-height, 40px);
     color-scheme: light;
   }
@@ -39,6 +40,7 @@
       --button-ink: #FFFFFF;
       --focus: #8AB0FF;
       --star: #F2B53A;
+      --shadow: rgba(0, 0, 0, 0.45);
       color-scheme: dark;
     }
   }
@@ -52,12 +54,15 @@
     font: 13px/1.4 "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
     overflow: hidden;
   }
-  button, input { font: inherit; color: inherit; }
+  button, input, select, textarea { font: inherit; color: inherit; }
   button { cursor: default; }
-  button:focus-visible, input:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+  :focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
   .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  svg .fill { fill: none; }
+  [aria-pressed="true"] svg .fill { fill: currentColor; }
+  .muted { color: var(--ink-soft); }
 
-  /* ---------- Tab strip (sits in the title bar when installed) ---------- */
+  /* ---------- Tab strip (in the title bar when installed) ---------- */
   .bar {
     position: fixed;
     top: env(titlebar-area-y, 0px);
@@ -100,10 +105,12 @@
   }
   .tab:hover { background: var(--chrome-2); }
   .tab.active { background: var(--sheet); color: var(--ink); }
-  .tab:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+  .tab.partner { background: color-mix(in srgb, var(--sheet) 70%, var(--chrome)); color: var(--ink); }
+  .tab.dragging { opacity: 0.45; }
+  .tab:focus-visible { outline-offset: -2px; }
   .tab.home { flex: none; width: 44px; min-width: 44px; padding: 0; justify-content: center; }
 
-  /* Sight mark: hollow on background tabs, a centred dot on the tab you're looking at. */
+  /* Sight mark: hollow on background tabs, centred dot on the tab you're looking at. */
   .mark {
     flex: none;
     width: 10px;
@@ -112,7 +119,7 @@
     border: 1.5px solid currentColor;
     opacity: 0.45;
   }
-  .tab.active .mark, .mark.on {
+  .tab.active .mark, .tab.partner .mark, .mark.on {
     border-color: var(--sight);
     background: radial-gradient(circle, var(--sight) 0 1.8px, transparent 2.4px);
     opacity: 1;
@@ -131,7 +138,7 @@
   }
   .close:hover { background: var(--chrome-2); opacity: 1; }
   .tab.active .close:hover { background: var(--chrome); }
-  .add {
+  .bar-btn {
     -webkit-app-region: no-drag;
     app-region: no-drag;
     flex: none;
@@ -144,27 +151,12 @@
     display: grid;
     place-items: center;
   }
-  .add:hover { background: var(--chrome-2); }
-  .edge-btn {
-    -webkit-app-region: no-drag;
-    app-region: no-drag;
-    flex: none;
-    display: flex;
-    align-items: center;
-    gap: 7px;
-    height: 28px;
-    margin: 0 4px 5px auto;
-    padding: 0 12px;
-    border: 1px solid var(--line);
-    border-radius: 6px;
-    background: var(--sheet);
-    font-size: 12px;
-    font-weight: 600;
-    white-space: nowrap;
-  }
-  .edge-btn:hover { background: var(--chrome-2); }
+  .bar-btn:hover { background: var(--chrome-2); }
+  .bar-btn[aria-pressed="true"] { background: var(--sheet); color: var(--sight); }
 
+  /* ---------- Stage ---------- */
   main {
+    --split: 50%;
     position: fixed;
     top: var(--bar-h);
     left: 0;
@@ -174,7 +166,9 @@
   }
   .frame {
     position: absolute;
-    inset: 0;
+    top: 0;
+    bottom: 0;
+    left: 0;
     width: 100%;
     height: 100%;
     border: 0;
@@ -182,13 +176,29 @@
     background: var(--stage);
   }
   .frame.active { visibility: visible; }
+  .frame.pane-left { width: calc(var(--split) - 3px); }
+  .frame.pane-right { left: calc(var(--split) + 3px); width: calc(100% - var(--split) - 3px); }
+  .splitter {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: calc(var(--split) - 3px);
+    width: 6px;
+    z-index: 3;
+    background: var(--line);
+    cursor: col-resize;
+    touch-action: none;
+  }
+  .splitter:hover, .splitter:focus-visible { background: var(--ink-soft); }
+  main.resizing .frame { pointer-events: none; }
 
-  /* ---------- Home: sidebar + grid ---------- */
+  /* ---------- Home ---------- */
   .home-view {
     position: absolute;
     inset: 0;
+    z-index: 4;
     display: grid;
-    grid-template-columns: 224px minmax(0, 1fr);
+    grid-template-columns: 232px minmax(0, 1fr);
     background: var(--sheet);
   }
   .side {
@@ -196,18 +206,39 @@
     flex-direction: column;
     min-height: 0;
     overflow-y: auto;
-    padding: 20px 10px 16px;
+    padding: 12px 10px 16px;
     background: var(--chrome);
     border-right: 1px solid var(--line);
   }
   .nav { display: flex; flex-direction: column; gap: 1px; }
-  .nav-sep { height: 1px; margin: 10px 8px; background: var(--line); }
+  .nav-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    min-height: 28px;
+    margin: 12px 0 2px;
+    padding: 0 4px 0 10px;
+  }
+  .nav-heading:first-child { margin-top: 0; }
+  .nav-heading h2 { margin: 0; font-size: 12px; font-weight: 600; color: var(--ink-soft); }
+  .nav-add {
+    width: 26px;
+    height: 26px;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--ink-soft);
+    display: grid;
+    place-items: center;
+  }
+  .nav-add:hover { background: var(--chrome-2); color: var(--ink); }
+  .nav-note { margin: 0; padding: 2px 10px 6px; font-size: 12px; color: var(--ink-soft); }
   .nav-item {
     display: flex;
     align-items: center;
     gap: 10px;
     width: 100%;
-    min-height: 34px;
+    min-height: 32px;
     padding: 0 10px;
     border: 0;
     border-radius: 6px;
@@ -218,37 +249,57 @@
   }
   .nav-item:hover { background: var(--chrome-2); color: var(--ink); }
   .nav-item[aria-current="true"] { background: var(--sheet); color: var(--ink); font-weight: 600; box-shadow: inset 3px 0 0 var(--sight); }
+  .nav-item.drop-target { outline: 2px dashed var(--sight); outline-offset: -2px; }
   .nav-icon { flex: none; width: 16px; height: 16px; display: grid; place-items: center; }
-  .nav-icon svg .fill { fill: none; }
-  .nav-label { flex: 1; overflow: hidden; text-overflow: ellipsis; }
+  .nav-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
   .nav-count { font-size: 12px; font-variant-numeric: tabular-nums; color: var(--ink-soft); font-weight: 400; }
   .side-foot { margin-top: auto; padding: 20px 8px 0; font-size: 12px; color: var(--ink-soft); }
   .side-foot p { margin: 0 0 10px; }
-  .link-btn { border: 0; padding: 0; background: none; color: var(--ink-soft); text-decoration: underline; font-size: 12px; }
+  .link-btn { display: block; margin: 0 0 6px; border: 0; padding: 0; background: none; color: var(--ink-soft); text-decoration: underline; font-size: 12px; text-align: left; }
   .link-btn:hover { color: var(--ink); }
 
-  .content { min-width: 0; min-height: 0; overflow-y: auto; padding: 28px 32px 48px; }
+  .content { min-width: 0; min-height: 0; overflow-y: auto; padding: 28px 32px 56px; }
   .content-head { display: flex; align-items: flex-end; flex-wrap: wrap; gap: 12px 16px; margin-bottom: 16px; }
-  .content-head .titles { flex: 1 1 auto; min-width: 0; }
-  .content-head h1 {
+  .titles { flex: 1 1 auto; min-width: 0; }
+  .titles h1 {
     margin: 0;
     font: 600 26px/1.2 "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif;
     letter-spacing: -0.01em;
+    overflow-wrap: anywhere;
   }
-  .content-head p { margin: 2px 0 0; color: var(--ink-soft); }
-  .head-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+  .titles p { margin: 3px 0 0; color: var(--ink-soft); max-width: 70ch; }
+  .head-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+
   .primary, .secondary {
     min-height: 34px;
     padding: 6px 16px;
     border-radius: 6px;
     font-weight: 600;
+    white-space: nowrap;
   }
   .primary { border: 0; background: var(--button-bg); color: var(--button-ink); }
-  .primary:hover { filter: brightness(1.08); }
+  .primary:hover:not(:disabled) { filter: brightness(1.08); }
   .secondary { border: 1px solid var(--line); background: transparent; }
-  .secondary:hover { background: var(--chrome); }
+  .secondary:hover:not(:disabled) { background: var(--chrome); }
+  .primary:disabled, .secondary:disabled { opacity: 0.5; }
+  .sm { min-height: 30px; padding: 4px 10px; font-size: 12.5px; }
+  .icon-btn {
+    flex: none;
+    width: 32px;
+    height: 32px;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--ink-soft);
+    display: grid;
+    place-items: center;
+  }
+  .icon-btn:hover:not(:disabled) { background: var(--chrome); color: var(--ink); }
+  .icon-btn:disabled { opacity: 0.4; }
+  .icon-btn.bordered { border: 1px solid var(--line); }
 
-  .search { position: relative; margin-bottom: 20px; max-width: 420px; }
+  .toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 20px; }
+  .search { position: relative; flex: 1 1 260px; max-width: 440px; }
   .search svg { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); color: var(--ink-soft); pointer-events: none; }
   .search input {
     width: 100%;
@@ -259,8 +310,25 @@
     background: var(--chrome);
   }
   .search input::placeholder { color: var(--ink-soft); }
+  .view-opts { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+  .field {
+    height: 34px;
+    padding: 0 10px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: var(--sheet);
+    color: var(--ink);
+    min-width: 0;
+  }
+  textarea.field { height: auto; min-height: 96px; width: 100%; padding: 8px 10px; resize: vertical; line-height: 1.45; }
+  input[type="text"].field, input[type="search"].field { width: 100%; }
+  .seg { display: flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+  .seg button { width: 34px; height: 32px; border: 0; background: transparent; color: var(--ink-soft); display: grid; place-items: center; }
+  .seg button[aria-pressed="true"] { background: var(--chrome-2); color: var(--ink); }
 
-  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(188px, 1fr)); gap: 14px; }
+  /* ---------- Cards ---------- */
+  .items.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(188px, 1fr)); gap: 14px; }
+  .items.list { display: flex; flex-direction: column; gap: 6px; }
   .card {
     position: relative;
     display: flex;
@@ -272,27 +340,25 @@
   }
   .card:hover { border-color: var(--ink-soft); }
   .card.is-pinned { border-color: var(--ink-soft); }
-  .card-open {
-    display: flex;
-    flex-direction: column;
-    padding: 0;
-    border: 0;
-    background: transparent;
-    text-align: left;
-  }
+  .card-open { display: flex; flex-direction: column; padding: 0; border: 0; background: transparent; text-align: left; min-width: 0; }
   .card-open:focus-visible { outline-offset: -2px; }
   .card-art {
     position: relative;
-    height: 104px;
+    height: 116px;
     display: grid;
     place-items: center;
+    overflow: hidden;
     background: var(--chrome);
     color: var(--ink-soft);
   }
+  .card-art img.thumb { display: none; position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: top; background: #fff; }
+  .card-art.has-thumb img.thumb { display: block; }
+  .card-art.has-thumb .doc-icon { display: none; }
   .card-badge {
     position: absolute;
     left: 8px;
     top: 8px;
+    z-index: 1;
     display: flex;
     align-items: center;
     gap: 6px;
@@ -302,8 +368,9 @@
     color: var(--sight);
     font-size: 11px;
     font-weight: 600;
+    box-shadow: 0 1px 3px var(--shadow);
   }
-  .card-body { padding: 10px 12px 2px; }
+  .card-body { display: block; padding: 10px 12px 2px; min-width: 0; }
   .card-name {
     display: -webkit-box;
     -webkit-line-clamp: 2;
@@ -312,10 +379,19 @@
     font-size: 13.5px;
     font-weight: 600;
     line-height: 1.3;
-    word-break: break-word;
+    overflow-wrap: anywhere;
   }
   .card-meta { display: flex; justify-content: space-between; gap: 10px; margin-top: 3px; font-size: 12px; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
-  .card-actions { display: flex; justify-content: flex-end; gap: 2px; padding: 2px 6px 6px; }
+  .card-meta span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .card-meta span:last-child { flex: none; }
+  .card-note { display: flex; gap: 6px; margin-top: 6px; font-size: 12px; color: var(--ink-soft); }
+  .card-note svg { flex: none; margin-top: 1px; }
+  .card-note span { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+  .chip { padding: 1px 8px; border-radius: 999px; background: var(--chrome); color: var(--ink-soft); font-size: 11px; }
+  .chip.on { color: var(--sight); font-weight: 600; }
+  .items.grid .chip.list-only { display: none; }
+  .card-actions { display: flex; justify-content: flex-end; gap: 2px; margin-top: auto; padding: 2px 6px 6px; }
   .act {
     width: 30px;
     height: 30px;
@@ -329,12 +405,26 @@
   .act:hover { background: var(--chrome); color: var(--ink); }
   .act[aria-pressed="true"] { color: var(--ink); }
   .act.fav[aria-pressed="true"] { color: var(--star); }
-  .act svg .fill { fill: none; }
-  .act[aria-pressed="true"] svg .fill { fill: currentColor; }
 
-  .view-empty { padding: 48px 8px; color: var(--ink-soft); max-width: 52ch; }
-  .view-empty h2 { margin: 0 0 6px; color: var(--ink); font: 600 17px/1.3 "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif; }
-  .view-empty p { margin: 0; }
+  .items.list .card { flex-direction: row; align-items: center; border-radius: 8px; }
+  .items.list .card-open { flex: 1; flex-direction: row; align-items: center; }
+  .items.list .card-art { flex: none; width: 44px; height: 56px; margin: 6px 0 6px 8px; border-radius: 4px; }
+  .items.list .card-art .doc-icon svg { width: 22px; height: 28px; }
+  .items.list .card-badge { display: none; }
+  .items.list .card-body { flex: 1; padding: 8px 12px; }
+  .items.list .card-name { -webkit-line-clamp: 1; }
+  .items.list .card-meta { justify-content: flex-start; gap: 16px; }
+  .items.list .card-note span { -webkit-line-clamp: 1; }
+  .items.list .card-actions { margin-top: 0; padding: 0 8px; }
+
+  .section-title { margin: 28px 0 10px; font-size: 13px; font-weight: 600; color: var(--ink-soft); }
+  .section-title:first-child { margin-top: 4px; }
+
+  .notice { max-width: 62ch; padding: 18px 20px; border: 1px solid var(--line); border-radius: 10px; background: var(--chrome); }
+  .notice h2 { margin: 0 0 6px; font: 600 16px/1.3 "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif; }
+  .notice p { margin: 0 0 12px; color: var(--ink-soft); }
+  .notice p:last-child { margin-bottom: 0; }
+  .notice .row { display: flex; flex-wrap: wrap; gap: 8px; }
 
   .first-run { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 48px 16px 24px; text-align: center; }
   .first-run p { margin: 0; color: var(--ink-soft); max-width: 46ch; }
@@ -342,21 +432,165 @@
   .reticle { width: 104px; height: 104px; color: color-mix(in srgb, var(--ink-soft) 55%, transparent); margin-bottom: 6px; }
   .reticle .dot { fill: var(--sight); }
 
-  @media (max-width: 720px) {
+  /* ---------- Search results ---------- */
+  .hits { display: flex; flex-direction: column; gap: 10px; }
+  .hit { padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; }
+  .hit-file { padding: 0; border: 0; background: none; color: var(--ink); font-size: 14px; font-weight: 600; text-align: left; }
+  .hit-file:hover { text-decoration: underline; }
+  .hit-meta { margin: 2px 0 6px; font-size: 12px; color: var(--ink-soft); }
+  .hit-page { display: flex; gap: 12px; width: 100%; padding: 6px 8px; border: 0; border-radius: 6px; background: transparent; text-align: left; }
+  .hit-page:hover { background: var(--chrome); }
+  .hit-page b { flex: none; min-width: 52px; font-size: 12px; font-weight: 600; color: var(--ink-soft); }
+  .hit-page span { font-size: 12.5px; }
+  mark { padding: 0 1px; border-radius: 2px; background: color-mix(in srgb, var(--sight) 24%, transparent); color: inherit; }
+
+  /* ---------- Tools ---------- */
+  .tool-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(232px, 1fr)); gap: 14px; }
+  .tool {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+    padding: 16px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--sheet);
+    text-align: left;
+  }
+  .tool:hover { border-color: var(--ink-soft); background: var(--chrome); }
+  .tool-icon { color: var(--sight); }
+  .tool b { font-size: 14px; }
+  .tool span { font-size: 12.5px; color: var(--ink-soft); }
+
+  @media (max-width: 760px) {
     .home-view { grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1fr); }
     .side { flex-direction: row; padding: 8px; border-right: 0; border-bottom: 1px solid var(--line); overflow-x: auto; overflow-y: hidden; }
-    .nav { flex-direction: row; }
-    .nav-sep { width: 1px; height: auto; margin: 6px 4px; }
+    .nav { flex-direction: row; align-items: center; }
+    .nav-heading { margin: 0 0 0 8px; }
+    .nav-heading h2, .nav-note { display: none; }
     .nav-item { width: auto; }
     .side-foot { display: none; }
     .content { padding: 20px 16px 40px; }
   }
 
-  /* ---------- Drag and drop ---------- */
+  /* ---------- Menus ---------- */
+  .menu {
+    position: fixed;
+    z-index: 30;
+    min-width: 220px;
+    max-width: 320px;
+    max-height: 70vh;
+    overflow-y: auto;
+    padding: 6px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--sheet);
+    box-shadow: 0 10px 30px var(--shadow);
+  }
+  .menu-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    min-height: 32px;
+    padding: 0 12px 0 6px;
+    border: 0;
+    border-radius: 5px;
+    background: transparent;
+    color: var(--ink);
+    text-align: left;
+  }
+  .menu-item:hover:not(:disabled), .menu-item:focus { background: var(--chrome); outline: none; }
+  .menu-item:focus-visible { box-shadow: inset 0 0 0 2px var(--focus); }
+  .menu-item:disabled { color: var(--ink-soft); opacity: 0.6; }
+  .menu-check { flex: none; width: 16px; display: grid; place-items: center; color: var(--sight); }
+  .menu-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .menu-sep { height: 1px; margin: 5px 4px; background: var(--line); }
+  .menu-heading { padding: 6px 10px 2px 30px; font-size: 11.5px; font-weight: 600; color: var(--ink-soft); }
+
+  /* ---------- Dialogs ---------- */
+  dialog {
+    max-width: calc(100vw - 32px);
+    max-height: calc(100vh - 48px);
+    padding: 0;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--sheet);
+    color: var(--ink);
+    box-shadow: 0 20px 60px var(--shadow);
+  }
+  dialog::backdrop { background: rgba(15, 20, 25, 0.45); }
+  .dlg { width: 560px; }
+  .dlg[open] { display: flex; flex-direction: column; }
+  .dlg.wide { width: 1120px; height: calc(100vh - 48px); }
+  .dlg-head { display: flex; align-items: center; gap: 12px; padding: 16px 14px 8px 20px; }
+  .dlg-head h2 { flex: 1; min-width: 0; margin: 0; font: 600 18px/1.3 "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif; overflow-wrap: anywhere; }
+  .dlg-body { flex: 1; min-height: 0; overflow-y: auto; padding: 8px 20px 18px; }
+  .dlg-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; padding: 12px 20px 16px; border-top: 1px solid var(--line); }
+  .status { margin-right: auto; font-size: 12.5px; color: var(--ink-soft); }
+  .status.err, .err { color: var(--sight); }
+  .small-dlg { width: 440px; padding: 20px; }
+  .small-dlg h2 { margin: 0 0 14px; font: 600 18px/1.3 "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif; }
+  .small-dlg .dlg-foot { padding: 14px 0 0; border-top: 0; }
+  .form-row { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+  .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 0 14px; }
+  .field-label { font-size: 12.5px; font-weight: 600; }
+  .help { margin: 0; font-size: 12px; color: var(--ink-soft); }
+  .choice { display: flex; align-items: flex-start; gap: 8px; margin: 2px 0 6px; }
+  .choice input { margin-top: 3px; }
+  .inline { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+  .details h3 { margin: 18px 0 8px; font-size: 13px; }
+  .details h3:first-child { margin-top: 4px; }
+  .bm-list, .file-list { list-style: none; margin: 0 0 10px; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+  .bm, .file-row { display: flex; align-items: center; gap: 6px; padding: 4px 4px 4px 12px; border: 1px solid var(--line); border-radius: 8px; }
+  .bm-open { flex: 1; min-width: 0; padding: 6px 0; border: 0; background: none; text-align: left; }
+  .bm-open b { margin-right: 8px; }
+  .file-row .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .file-row img { width: 34px; height: 34px; object-fit: cover; border-radius: 4px; background: var(--chrome); }
+  .empty-line { margin: 0 0 10px; color: var(--ink-soft); }
+  .check-list { display: flex; flex-direction: column; gap: 4px; }
+
+  /* ---------- Page organizer ---------- */
+  .org-top { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 4px 16px; }
+  .org-top .form-row { flex: 1 1 320px; max-width: 520px; margin-bottom: 8px; }
+  .org-bar {
+    position: sticky;
+    top: -8px;
+    z-index: 2;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 14px;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--line);
+    background: var(--sheet);
+  }
+  .org-bar .gap { width: 8px; }
+  .pages { display: grid; grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); gap: 12px; }
+  .page-tile {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 8px;
+    border: 2px solid transparent;
+    border-radius: 8px;
+    background: var(--chrome);
+  }
+  .page-tile[aria-pressed="true"] { border-color: var(--sight); background: color-mix(in srgb, var(--sight) 8%, var(--chrome)); }
+  .page-tile.dragging { opacity: 0.4; }
+  .page-canvas { width: 112px; height: 144px; display: grid; place-items: center; }
+  .page-canvas > span { display: grid; place-items: center; transition: transform 0.15s; }
+  .page-canvas canvas { display: block; max-width: 108px; max-height: 140px; background: #fff; box-shadow: 0 1px 3px var(--shadow); }
+  .page-label { font-size: 12px; color: var(--ink-soft); }
+  @media (prefers-reduced-motion: reduce) { .page-canvas > span { transition: none; } }
+
+  /* ---------- Drop target and toast ---------- */
   .drop {
     position: absolute;
     inset: 10px;
-    z-index: 5;
+    z-index: 8;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -370,85 +604,83 @@
     pointer-events: none;
   }
   .drop .reticle { color: var(--sight); }
-
   .toast {
     position: fixed;
     left: 50%;
     bottom: 20px;
+    z-index: 40;
     transform: translateX(-50%);
-    z-index: 10;
-    max-width: min(520px, calc(100% - 32px));
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    max-width: min(560px, calc(100% - 32px));
     padding: 10px 14px;
     border-radius: 8px;
     background: var(--ink);
     color: var(--sheet);
-    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
-    display: flex;
-    align-items: center;
-    gap: 14px;
+    box-shadow: 0 6px 20px var(--shadow);
   }
-  .toast-btn { flex: none; border: 0; padding: 4px 8px; border-radius: 4px; background: transparent; color: inherit; font-weight: 600; text-decoration: underline; }
+  .toast-btn { flex: none; padding: 4px 8px; border: 0; border-radius: 4px; background: transparent; color: inherit; font-weight: 600; text-decoration: underline; }
   .toast-btn:hover { background: color-mix(in srgb, var(--sheet) 15%, transparent); }
+  kbd { padding: 1px 6px; border: 1px solid var(--line); border-radius: 4px; background: var(--chrome); font: 12px/1.5 "Segoe UI", system-ui, sans-serif; }
+  .keys { width: 100%; border-collapse: collapse; }
+  .keys td { padding: 6px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
+  .keys td:first-child { width: 46%; padding-right: 12px; }
 </style>
 </head>
 <body>
   <header class="bar">
-    <div class="tab home" id="tab-home" role="tab" aria-controls="home" aria-label="Home" title="Home" tabindex="0">
-        <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 7.2 8 2.5l5.5 4.7V13a.5.5 0 0 1-.5.5H9.6V9.8H6.4v3.7H3a.5.5 0 0 1-.5-.5Z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>
-      </div>
+    <div class="tab home" id="tab-home" role="tab" aria-controls="home" aria-label="Home" title="Home (Alt+Home)" tabindex="0"></div>
     <div class="tabs" id="tabs" role="tablist" aria-label="Open PDFs" aria-owns="tab-home"></div>
-    <button class="add" id="addBtn" type="button" title="Open PDFs (Ctrl+O)" aria-label="Open PDFs">
-      <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M7 1v12M1 7h12" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
-    </button>
-    <button class="edge-btn" id="edgeBtn" type="button" hidden title="Open this PDF in an Edge browser tab, where Ask Copilot is available">
-      <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M8 2h4v4M12 2 6.5 7.5M10.5 8.5V11a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V4.5a1 1 0 0 1 1-1h2.5" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      Open in Edge
-    </button>
+    <button class="bar-btn" id="addBtn" type="button" title="Open PDFs (Ctrl+O)" aria-label="Open PDFs"></button>
+    <button class="bar-btn" id="splitBtn" type="button" aria-pressed="false" aria-label="Split view" hidden></button>
   </header>
 
   <main id="stage">
     <section class="home-view" id="home" role="tabpanel" aria-labelledby="tab-home">
       <aside class="side">
-        <nav class="nav" id="nav" aria-label="Recent PDFs"></nav>
+        <nav class="nav" id="nav" aria-label="Library"></nav>
         <div class="side-foot">
           <p id="hint"></p>
+          <button class="link-btn" id="keysBtn" type="button">Keyboard shortcuts</button>
           <button class="link-btn" id="clearBtn" type="button" hidden>Clear the Recent list</button>
         </div>
       </aside>
 
-      <div class="content">
+      <div class="content" id="content">
         <div class="content-head">
           <div class="titles">
             <h1 id="viewTitle">All recent</h1>
-            <p id="viewCount"></p>
+            <p id="viewSub"></p>
           </div>
-          <div class="head-actions">
-            <button class="secondary" id="restoreBtn" type="button" hidden>Reopen last session</button>
-            <button class="primary" id="chooseBtn" type="button">Choose PDFs</button>
+          <div class="head-actions" id="headActions"></div>
+        </div>
+
+        <div class="toolbar" id="toolbar">
+          <div class="search">
+            <span id="searchIcon"></span>
+            <label class="sr-only" for="search">Search names, notes and text inside your PDFs</label>
+            <input id="search" type="search" placeholder="Search names, notes and text inside PDFs" autocomplete="off">
+          </div>
+          <div class="view-opts" id="viewOpts">
+            <label class="sr-only" for="sortSel">Sort by</label>
+            <select class="field" id="sortSel">
+              <option value="recent">Most recent</option>
+              <option value="name">Name</option>
+              <option value="size">Size</option>
+            </select>
+            <div class="seg" role="group" aria-label="Layout">
+              <button type="button" id="gridBtn" aria-pressed="true" title="Grid" aria-label="Grid"></button>
+              <button type="button" id="listBtn" aria-pressed="false" title="List" aria-label="List"></button>
+            </div>
           </div>
         </div>
 
-        <div class="search" id="searchWrap" hidden>
-          <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><circle cx="6" cy="6" r="4.5" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="m9.5 9.5 3 3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
-          <label class="sr-only" for="search">Search all recent PDFs</label>
-          <input id="search" type="search" placeholder="Search all recent PDFs" autocomplete="off">
-        </div>
-
-        <div class="grid" id="grid"></div>
-        <div class="view-empty" id="viewEmpty" hidden><h2></h2><p></p></div>
-
-        <div class="first-run" id="firstRun" hidden>
-          <svg class="reticle" viewBox="0 0 120 120" aria-hidden="true">
-            <circle cx="60" cy="60" r="42" fill="none" stroke="currentColor" stroke-width="2"/>
-            <circle cx="60" cy="60" r="22" fill="none" stroke="currentColor" stroke-width="1.5"/>
-            <path d="M60 4v26M60 90v26M4 60h26M90 60h26" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-            <circle class="dot" cx="60" cy="60" r="5"/>
-          </svg>
-          <h2>No recent PDFs yet</h2>
-          <p>PDFs you open will appear here, so you can get back to any of them with one click. You can also drop PDF files anywhere in this window.</p>
-        </div>
+        <div id="viewBody"></div>
       </div>
     </section>
+
+    <div class="splitter" id="splitter" role="separator" aria-orientation="vertical" aria-label="Resize split view" tabindex="0" hidden></div>
 
     <div class="drop" id="drop" hidden>
       <svg class="reticle" viewBox="0 0 120 120" aria-hidden="true">
@@ -460,423 +692,132 @@
     </div>
   </main>
 
+  <div class="menu" id="menu" role="menu" hidden></div>
+  <dialog class="dlg" id="dlg" aria-labelledby="dlgTitle"></dialog>
+  <dialog class="small-dlg" id="promptDlg"></dialog>
   <div class="toast" id="toast" role="status" aria-live="polite" hidden><span id="toastText"></span><button class="toast-btn" id="toastBtn" type="button" hidden></button></div>
-  <input type="file" id="fileInput" accept="application/pdf,.pdf" multiple hidden>
-
+  <input type="file" id="fileInput" hidden>
 <script>
 (() => {
   'use strict';
 
+  // ============================================================
+  // Constants
+  // ============================================================
   const APP = 'Sureshot PDF';
   const HOME = 'home';
-  const MAX_RECENTS = 40;
+  const MAX_RECENTS = 40;          // unpinned, unfavourited files kept in Recent
+  const MANY_TABS = 12;            // warn once when this many PDFs are open
+  const OPEN_ALL_CONFIRM = 10;     // ask before "Open all" opens more than this
+  const FOLDER_LIMIT = 1000;       // most PDFs listed from one linked folder
+  const TEXT_LIMIT = 2000000;      // characters of text kept per PDF for search
   const DAY = 86400000;
+  const MM = 72 / 25.4;            // PDF points per millimetre
+  const CDN = {
+    pdfjs: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js',
+    pdfjsWorker: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js',
+    pdflib: 'https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js'
+  };
 
-  const $ = (sel) => document.querySelector(sel);
-  const tabsEl = $('#tabs');
-  const homeTab = $('#tab-home');
-  const homeEl = $('#home');
-  const stage = $('#stage');
-  const dropEl = $('#drop');
-  const toastEl = $('#toast');
-  const restoreBtn = $('#restoreBtn');
-  const clearBtn = $('#clearBtn');
-  const fileInput = $('#fileInput');
-  const edgeBtn = $('#edgeBtn');
-  const searchEl = $('#search');
+  // ============================================================
+  // DOM helpers and icons
+  // ============================================================
+  const $ = (sel, root = document) => root.querySelector(sel);
 
-  const CLOSE_ICON = '<svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>';
+  function el(tag, attrs, ...kids) {
+    const node = document.createElement(tag);
+    if (attrs) {
+      for (const [k, v] of Object.entries(attrs)) {
+        if (v === null || v === undefined || v === false) continue;
+        if (k === 'class') node.className = v;
+        else if (k === 'text') node.textContent = v;
+        else if (k === 'html') node.innerHTML = v;
+        else if (k === 'value') node.value = v;
+        else if (k === 'dataset') Object.assign(node.dataset, v);
+        else if (k.startsWith('on') && typeof v === 'function') node.addEventListener(k.slice(2), v);
+        else node.setAttribute(k, v === true ? '' : v);
+      }
+    }
+    for (const kid of kids.flat()) {
+      if (kid === null || kid === undefined || kid === false) continue;
+      node.append(kid.nodeType ? kid : document.createTextNode(String(kid)));
+    }
+    return node;
+  }
+  const svg = (body, size = 16) =>
+    '<svg width="' + size + '" height="' + size + '" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + body + '</svg>';
 
-  // Open tabs: {id, name, key, url, handle, recentId, tabEl, frame}
-  const tabs = [];
-  let activeId = HOME;
-  let nextId = 1;
+  const ICONS = {
+    home: svg('<path d="M2.5 7.2 8 2.5l5.5 4.7V13a.5.5 0 0 1-.5.5H9.6V9.8H6.4v3.7H3a.5.5 0 0 1-.5-.5Z"/>'),
+    plus: svg('<path d="M8 2.5v11M2.5 8h11"/>', 14),
+    split: svg('<rect x="1.5" y="2.5" width="13" height="11" rx="1.5"/><path d="M8 2.5v11"/>'),
+    x: svg('<path d="M4 4l8 8M12 4l-8 8"/>'),
+    xs: svg('<path d="M4.5 4.5l7 7M11.5 4.5l-7 7"/>', 10),
+    pin: svg('<path class="fill" d="M9.8 1.8l4.4 4.4-1.8.7-2.3 2.3.3 3.1-.8.8-2.7-2.7-4 4H1.6v-1.3l4-4-2.7-2.7.8-.8 3.1.3 2.3-2.3Z"/>'),
+    star: svg('<path class="fill" d="m8 1.7 1.9 4 4.3.5-3.2 3 .9 4.3L8 11.3l-3.9 2.2.9-4.3-3.2-3 4.3-.5Z"/>'),
+    more: svg('<circle cx="3.5" cy="8" r="1.1" fill="currentColor" stroke="none"/><circle cx="8" cy="8" r="1.1" fill="currentColor" stroke="none"/><circle cx="12.5" cy="8" r="1.1" fill="currentColor" stroke="none"/>'),
+    clock: svg('<circle cx="8" cy="8" r="6"/><path d="M8 4.6V8l2.4 1.5"/>'),
+    day: svg('<rect x="2" y="3" width="12" height="11" rx="1.5"/><path d="M2 6.5h12M5.5 1.5v3M10.5 1.5v3"/>'),
+    folder: svg('<path d="M1.8 4.2a1 1 0 0 1 1-1h3.4l1.5 1.6h5.5a1 1 0 0 1 1 1v6.9a1 1 0 0 1-1 1H2.8a1 1 0 0 1-1-1Z"/>'),
+    stack: svg('<rect x="2" y="5.5" width="12" height="8.5" rx="1.2"/><path d="M3.8 3.5h8.4M5.6 1.6h4.8"/>'),
+    tools: svg('<rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="2" width="5" height="5" rx="1"/><rect x="2" y="9" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/>'),
+    grid: svg('<rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="2" width="5" height="5" rx="1"/><rect x="2" y="9" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/>'),
+    list: svg('<path d="M2.5 4h11M2.5 8h11M2.5 12h11"/>'),
+    search: svg('<circle cx="6.5" cy="6.5" r="4.5"/><path d="m10 10 3.5 3.5"/>', 14),
+    check: svg('<path d="m3 8.5 3 3 7-7"/>', 14),
+    note: svg('<path d="M3 2.5h10v8l-3 3H3Z"/><path d="M10 13.5v-3h3"/>', 13),
+    bookmark: svg('<path d="M4 2h8v12l-4-3-4 3Z"/>'),
+    rotL: svg('<path d="M3.2 7.5a5 5 0 1 1 1.4 3.7"/><path d="M3 3.2v4.3h4.3"/>'),
+    rotR: svg('<path d="M12.8 7.5a5 5 0 1 0-1.4 3.7"/><path d="M13 3.2v4.3H8.7"/>'),
+    up: svg('<path d="m4 10 4-4 4 4"/>'),
+    down: svg('<path d="m4 6 4 4 4-4"/>'),
+    trash: svg('<path d="M2.5 4h11M6.2 4V2.6h3.6V4M4 4l.7 9.4h6.6L12 4"/>'),
+    organize: svg('<rect x="2" y="2" width="5" height="6" rx="1"/><rect x="9" y="2" width="5" height="6" rx="1"/><path d="M4.5 10.5v3h7v-3M9.5 12l2-1.5L13.5 12"/>', 22),
+    merge: svg('<path d="M3 2v3.5c0 2.2 5 2.3 5 5V14M13 2v3.5c0 2.2-5 2.3-5 5"/>', 22),
+    splitTool: svg('<path d="M8 2v3.5c0 2.2-5 2.3-5 5V14M8 5.5c0 2.2 5 2.3 5 5V14"/>', 22),
+    image: svg('<rect x="2" y="2.5" width="12" height="11" rx="1.2"/><circle cx="6" cy="6.2" r="1.3"/><path d="m2.5 12 3.5-3.5 2.5 2.5 2-2 3 3"/>', 22),
+    numbers: svg('<path d="M5.8 2 4.6 14M11.4 2l-1.2 12M2.5 5.5h11M2 10.5h11"/>', 22),
+    watermark: svg('<path d="M8 2s4 4.5 4 7.3A4 4 0 0 1 4 9.3C4 6.5 8 2 8 2Z"/>', 22),
+    stamp: svg('<path d="M6 2.5h4l-.8 5H6.8Z"/><path d="M2.5 10h11v2h-11ZM3 14h10"/>', 22),
+    bigDoc: '<svg width="42" height="52" viewBox="0 0 42 52" aria-hidden="true"><path d="M5 2h22l11 11v35a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2Z" style="fill:var(--sheet)" stroke="currentColor" stroke-width="1.6"/><path d="M27 2v11h11" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M10 24h20M10 30h20M10 36h13" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" opacity=".55"/></svg>'
+  };
 
-  // Recent files, newest first: {id, name, size, lastOpened, handle}
-  let recents = [];
-  let savedSession = [];
-
+  // ============================================================
+  // Small utilities
+  // ============================================================
+  const uid = (prefix) => prefix + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+  const sigOf = (file) => file.name + '|' + file.size + '|' + file.lastModified;
+  const baseName = (name) => String(name || '').replace(/\.pdf$/i, '');
   const isPdf = (file) => !!file && (file.type === 'application/pdf' || /\.pdf$/i.test(file.name || ''));
-  const keyOf = (file) => file.name + '|' + file.size + '|' + file.lastModified;
-  const findTab = (id) => tabs.find((t) => t.id === id);
+  const plural = (n, word, many) => n + ' ' + (n === 1 ? word : (many || word + 's'));
+  const idle = () => new Promise((resolve) => (window.requestIdleCallback ? requestIdleCallback(() => resolve(), { timeout: 400 }) : setTimeout(resolve, 30)));
+  const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+  const range = (a, b) => Array.from({ length: b - a + 1 }, (_, i) => a + i);
 
-  // ---------- Tabs ----------
-
-  // Opens a file in a new tab (or switches to it if it's already open). Returns the tab.
-  function openFile(file, handle) {
-    if (!file) return null;
-    if (!isPdf(file)) {
-      toast('Skipped ' + file.name + '. Sureshot PDF opens PDF files only.');
-      return null;
-    }
-    const key = keyOf(file);
-    const existing = tabs.find((t) => t.key === key);
-    if (existing) {
-      if (handle && !existing.handle) existing.handle = handle;
-      activate(existing.id);
-      return existing;
-    }
-
-    const id = nextId++;
-    const blob = new Blob([file], { type: 'application/pdf' });
-    const url = URL.createObjectURL(blob);
-
-    const tabEl = document.createElement('div');
-    tabEl.className = 'tab';
-    tabEl.id = 'tab-' + id;
-    tabEl.title = file.name;
-    tabEl.tabIndex = -1;
-    tabEl.setAttribute('role', 'tab');
-    tabEl.setAttribute('aria-controls', 'frame-' + id);
-
-    const mark = document.createElement('span');
-    mark.className = 'mark';
-    mark.setAttribute('aria-hidden', 'true');
-
-    const title = document.createElement('span');
-    title.className = 'title';
-    title.textContent = file.name.replace(/\.pdf$/i, '');
-
-    const close = document.createElement('button');
-    close.className = 'close';
-    close.type = 'button';
-    close.tabIndex = -1;
-    close.title = 'Close';
-    close.setAttribute('aria-label', 'Close ' + file.name);
-    close.innerHTML = CLOSE_ICON;
-
-    tabEl.append(mark, title, close);
-    tabEl.addEventListener('click', (e) => { if (!e.target.closest('.close')) activate(id); });
-    tabEl.addEventListener('mousedown', (e) => { if (e.button === 1) e.preventDefault(); });
-    tabEl.addEventListener('auxclick', (e) => { if (e.button === 1) { e.preventDefault(); closeTab(id); } });
-    tabEl.addEventListener('keydown', onTabKey);
-    close.addEventListener('click', (e) => { e.stopPropagation(); closeTab(id); });
-
-    const frame = document.createElement('iframe');
-    frame.className = 'frame';
-    frame.id = 'frame-' + id;
-    frame.title = file.name;
-    frame.setAttribute('role', 'tabpanel');
-    frame.setAttribute('aria-labelledby', 'tab-' + id);
-    frame.src = url;
-
-    stage.insertBefore(frame, dropEl);
-    tabsEl.appendChild(tabEl);
-    const tab = { id, name: file.name, key, url, blob, edgeUrl: null, handle: handle || null, recentId: null, tabEl, frame };
-    tabs.push(tab);
-    activate(id);
-    saveSession();
-    return tab;
+  function permissionError(name) {
+    const err = new Error('Sureshot PDF needs your permission to read ' + name + '. Try again and choose Allow.');
+    err.name = 'PermissionDenied';
+    return err;
+  }
+  function friendly(err) {
+    if (!err) return 'Something went wrong.';
+    if (err.name === 'NotFoundError') return 'The file was moved, renamed or deleted.';
+    if (err.name === 'PasswordException') return 'This PDF is password-protected, so Sureshot PDF can’t read its pages.';
+    return err.message || String(err);
   }
 
-  function activate(id) {
-    activeId = id;
-    const onHome = id === HOME;
-    homeTab.classList.toggle('active', onHome);
-    homeTab.setAttribute('aria-selected', String(onHome));
-    homeTab.tabIndex = onHome ? 0 : -1;
-    homeEl.hidden = !onHome;
-
-    for (const t of tabs) {
-      const on = t.id === id;
-      t.tabEl.classList.toggle('active', on);
-      t.tabEl.setAttribute('aria-selected', String(on));
-      t.tabEl.tabIndex = on ? 0 : -1;
-      t.frame.classList.toggle('active', on);
-    }
-    const t = findTab(id);
-    document.title = t ? t.name + ' — ' + APP : APP;
-    edgeBtn.hidden = !t;
-    edgeBtn.setAttribute('aria-label', t ? 'Open ' + t.name + ' in Edge' : 'Open in Edge');
-    if (t) t.tabEl.scrollIntoView({ block: 'nearest', inline: 'nearest' });
-    if (onHome) renderHome();
+  function sizeText(bytes) {
+    if (typeof bytes !== 'number') return '';
+    if (bytes < 1024 * 1024) return Math.max(1, Math.round(bytes / 1024)) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
   }
-
-  function closeTab(id) {
-    const index = tabs.findIndex((t) => t.id === id);
-    if (index < 0) return;
-    const [t] = tabs.splice(index, 1);
-    const hadFocus = t.tabEl.contains(document.activeElement);
-    t.tabEl.remove();
-    t.frame.remove();
-    setTimeout(() => URL.revokeObjectURL(t.url), 1000);
-
-    if (activeId === id) {
-      const next = tabs[Math.min(index, tabs.length - 1)];
-      activate(next ? next.id : HOME);
-      if (hadFocus) (next ? next.tabEl : homeTab).focus();
-    } else if (activeId === HOME) {
-      renderHome();
-    }
-    saveSession();
-  }
-
-  function onTabKey(e) {
-    const order = [homeTab].concat(tabs.map((t) => t.tabEl));
-    const i = order.indexOf(e.currentTarget);
-    if (i < 0) return;
-    let j = null;
-    if (e.key === 'ArrowRight') j = (i + 1) % order.length;
-    else if (e.key === 'ArrowLeft') j = (i - 1 + order.length) % order.length;
-    else if (e.key === 'Home') j = 0;
-    else if (e.key === 'End') j = order.length - 1;
-    else if (e.key === 'Delete' && i > 0) { e.preventDefault(); closeTab(tabs[i - 1].id); return; }
-    else if ((e.key === 'Enter' || e.key === ' ') && i === 0) { e.preventDefault(); activate(HOME); return; }
-    if (j !== null) {
-      e.preventDefault();
-      activate(j === 0 ? HOME : tabs[j - 1].id);
-      order[j].focus();
-    }
-  }
-
-  homeTab.addEventListener('click', () => activate(HOME));
-  homeTab.addEventListener('keydown', onTabKey);
-
-  // ---------- Open in Edge (for Ask Copilot) ----------
-
-  // Opens the current PDF in a normal Edge browser tab. That tab gets its own copy of the file,
-  // which stays available after you close the PDF in Sureshot, until Sureshot itself is closed.
-  function openActiveInEdge() {
-    const t = findTab(activeId);
-    if (!t) return;
-    if (!t.edgeUrl) t.edgeUrl = URL.createObjectURL(t.blob);
-    const win = window.open(t.edgeUrl, '_blank');
-    if (!win) toast('Edge blocked the new tab. Allow pop-ups for Sureshot PDF, then try again.');
-  }
-  edgeBtn.addEventListener('click', openActiveInEdge);
-
-  // ---------- Opening files ----------
-
-  // Opens a file and, when we have a handle to it, records it in Recent.
-  async function openAndRemember(file, handle) {
-    const tab = openFile(file, handle);
-    if (tab && handle) {
-      try { tab.recentId = await rememberRecent(handle, file); } catch (err) { /* Recent is a convenience */ }
-      if (activeId === HOME) renderHome();
-    }
-    return tab;
-  }
-
-  async function openHandle(handle) {
-    let file;
-    try {
-      file = await handle.getFile();
-    } catch (err) {
-      toast('Couldn’t open ' + handle.name + '. ' + err.message);
-      return;
-    }
-    await openAndRemember(file, handle);
-  }
-
-  async function pickFiles() {
-    if ('showOpenFilePicker' in window) {
-      let handles;
-      try {
-        handles = await window.showOpenFilePicker({
-          multiple: true,
-          types: [{ description: 'PDF files', accept: { 'application/pdf': ['.pdf'] } }]
-        });
-      } catch (err) {
-        if (err.name !== 'AbortError') toast('Couldn’t show the file picker. ' + err.message);
-        return;
-      }
-      for (const h of handles) await openHandle(h);
-    } else {
-      fileInput.value = '';
-      fileInput.click();
-    }
-  }
-
-  fileInput.addEventListener('change', () => {
-    for (const f of fileInput.files) openFile(f, null);
-  });
-  $('#addBtn').addEventListener('click', pickFiles);
-  $('#chooseBtn').addEventListener('click', pickFiles);
-
-  document.addEventListener('keydown', (e) => {
-    if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'o') {
-      e.preventDefault();
-      pickFiles();
-    }
-  });
-
-  // PDFs opened from File Explorer ("Open with > Sureshot PDF")
-  if ('launchQueue' in window) {
-    window.launchQueue.setConsumer(async (params) => {
-      if (!params.files || !params.files.length) return;
-      for (const h of params.files) {
-        if (h.kind === 'file') await openHandle(h);
-      }
-    });
-  }
-
-  // ---------- Drag and drop ----------
-
-  let dragDepth = 0;
-  const hasFiles = (e) => !!e.dataTransfer && Array.from(e.dataTransfer.types || []).includes('Files');
-
-  window.addEventListener('dragenter', (e) => {
-    if (!hasFiles(e)) return;
-    e.preventDefault();
-    dragDepth++;
-    dropEl.hidden = false;
-  });
-  window.addEventListener('dragover', (e) => {
-    if (!hasFiles(e)) return;
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'copy';
-  });
-  window.addEventListener('dragleave', (e) => {
-    if (!hasFiles(e)) return;
-    dragDepth = Math.max(0, dragDepth - 1);
-    if (dragDepth === 0) dropEl.hidden = true;
-  });
-  window.addEventListener('drop', async (e) => {
-    if (!hasFiles(e)) return;
-    e.preventDefault();
-    dragDepth = 0;
-    dropEl.hidden = true;
-
-    // Everything has to be read from the drop event before the first await.
-    const entries = Array.from(e.dataTransfer.items)
-      .filter((item) => item.kind === 'file')
-      .map((item) => ({
-        file: item.getAsFile(),
-        handle: item.getAsFileSystemHandle ? item.getAsFileSystemHandle().catch(() => null) : Promise.resolve(null)
-      }));
-
-    for (const entry of entries) {
-      const handle = await entry.handle;
-      await openAndRemember(entry.file, handle && handle.kind === 'file' ? handle : null);
-    }
-  });
-
-  // ---------- Storage (kept in this app, on this PC) ----------
-
-  function idb(mode, op) {
-    return new Promise((resolve, reject) => {
-      if (!('indexedDB' in window)) { resolve(undefined); return; }
-      const open = indexedDB.open('sureshot-pdf', 1);
-      open.onupgradeneeded = () => open.result.createObjectStore('session');
-      open.onerror = () => reject(open.error);
-      open.onsuccess = () => {
-        const db = open.result;
-        const tx = db.transaction('session', mode);
-        const request = op(tx.objectStore('session'));
-        tx.oncomplete = () => { db.close(); resolve(request.result); };
-        tx.onerror = tx.onabort = () => { db.close(); reject(tx.error); };
-      };
-    });
-  }
-  const load = (key) => idb('readonly', (store) => store.get(key));
-  const store = (key, value) => idb('readwrite', (s) => s.put(value, key)).catch(() => {});
-
-  let saveTimer = null;
-  function saveSession() {
-    clearTimeout(saveTimer);
-    saveTimer = setTimeout(() => {
-      store('handles', tabs.filter((t) => t.handle).map((t) => t.handle));
-    }, 300);
-  }
-
-  // ---------- Recent ----------
-
-  // Pinned and favourite files are never dropped; the rest are capped at MAX_RECENTS.
-  function trimRecents() {
-    let others = 0;
-    recents = recents.filter((r) => {
-      if (r.pinned || r.favourite) return true;
-      others++;
-      return others <= MAX_RECENTS;
-    });
-  }
-
-  async function rememberRecent(handle, file) {
-    await ready;
-    let entry = null;
-    for (const r of recents) {
-      try {
-        if (await r.handle.isSameEntry(handle)) { entry = r; break; }
-      } catch (err) { /* stale handle; ignore */ }
-    }
-    if (!entry) entry = { id: 'r' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7), pinned: false, favourite: false };
-    entry.handle = handle;
-    entry.name = file.name;
-    entry.size = file.size;
-    entry.lastOpened = Date.now();
-    recents = [entry].concat(recents.filter((r) => r !== entry));
-    trimRecents();
-    store('recents', recents);
-    return entry.id;
-  }
-
-  function removeRecent(id, offerUndo) {
-    const index = recents.findIndex((r) => r.id === id);
-    if (index < 0) return;
-    const [entry] = recents.splice(index, 1);
-    store('recents', recents);
-    renderHome();
-    if (offerUndo) {
-      toast('Removed ' + entry.name + ' from the list. The file itself wasn’t deleted.', 'Undo', () => {
-        recents.splice(Math.min(index, recents.length), 0, entry);
-        store('recents', recents);
-        renderHome();
-      });
-    }
-  }
-
-  function toggleFlag(id, flag) {
-    const entry = recents.find((r) => r.id === id);
-    if (!entry) return;
-    entry[flag] = !entry[flag];
-    if (flag === 'pinned') entry.pinnedAt = entry.pinned ? Date.now() : undefined;
-    trimRecents();
-    store('recents', recents);
-    renderHome();
-    const btn = document.querySelector('.act.' + (flag === 'pinned' ? 'pin' : 'fav') + '[data-id="' + id + '"]');
-    if (btn) btn.focus();
-  }
-
-  async function openRecent(id) {
-    const entry = recents.find((r) => r.id === id);
-    if (!entry) return;
-
-    const alreadyOpen = tabs.find((t) => t.recentId === id);
-    if (alreadyOpen) {
-      entry.lastOpened = Date.now();
-      recents = [entry].concat(recents.filter((r) => r !== entry));
-      store('recents', recents);
-      activate(alreadyOpen.id);
-      return;
-    }
-
-    try {
-      let permission = await entry.handle.queryPermission({ mode: 'read' });
-      if (permission !== 'granted') permission = await entry.handle.requestPermission({ mode: 'read' });
-      if (permission !== 'granted') {
-        toast('Sureshot PDF needs your permission to read ' + entry.name + '. Click it again and choose Allow.');
-        return;
-      }
-      const file = await entry.handle.getFile();
-      await openAndRemember(file, entry.handle);
-    } catch (err) {
-      if (err && err.name === 'NotFoundError') {
-        removeRecent(id, false);
-        toast(entry.name + ' was moved, renamed or deleted, so it’s been removed from the list.');
-      } else {
-        toast('Couldn’t open ' + entry.name + '. ' + (err && err.message ? err.message : ''));
-      }
-    }
-  }
-
-  // ---------- Date buckets ----------
-
   function startOfDay(time) {
     const d = new Date(time);
     d.setHours(0, 0, 0, 0);
     return d;
   }
   function bucketOf(time) {
+    if (!time) return null;
     const today = startOfDay(Date.now());
     const yesterday = new Date(today); yesterday.setDate(today.getDate() - 1);
     const weekStart = new Date(today); weekStart.setDate(today.getDate() - ((today.getDay() + 6) % 7)); // Monday
@@ -889,7 +830,13 @@
     if (time >= monthStart.getTime()) return 'thismonth';
     return 'older';
   }
+  function shortDate(time) {
+    const date = new Date(time);
+    const sameYear = date.getFullYear() === new Date().getFullYear();
+    return date.toLocaleDateString([], sameYear ? { day: 'numeric', month: 'short' } : { day: 'numeric', month: 'short', year: 'numeric' });
+  }
   function whenText(time) {
+    if (!time) return 'Not opened yet';
     const date = new Date(time);
     const clock = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     const bucket = bucketOf(time);
@@ -897,255 +844,1886 @@
     if (bucket === 'yesterday') return 'Yesterday, ' + clock;
     const days = Math.round((startOfDay(Date.now()) - startOfDay(time)) / DAY);
     if (days < 7) return date.toLocaleDateString([], { weekday: 'long' }) + ', ' + clock;
-    const sameYear = date.getFullYear() === new Date().getFullYear();
-    return date.toLocaleDateString([], sameYear ? { day: 'numeric', month: 'short' } : { day: 'numeric', month: 'short', year: 'numeric' });
-  }
-  function sizeText(bytes) {
-    if (typeof bytes !== 'number') return '';
-    if (bytes < 1024 * 1024) return Math.max(1, Math.round(bytes / 1024)) + ' KB';
-    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+    return shortDate(time);
   }
 
-  // ---------- Home rendering ----------
+  // ============================================================
+  // Elements
+  // ============================================================
+  const tabsEl = $('#tabs');
+  const homeTab = $('#tab-home');
+  const homeEl = $('#home');
+  const stage = $('#stage');
+  const dropEl = $('#drop');
+  const splitter = $('#splitter');
+  const splitBtn = $('#splitBtn');
+  const navEl = $('#nav');
+  const viewBody = $('#viewBody');
+  const headActions = $('#headActions');
+  const viewTitle = $('#viewTitle');
+  const viewSub = $('#viewSub');
+  const searchEl = $('#search');
+  const sortSel = $('#sortSel');
+  const viewOpts = $('#viewOpts');
+  const gridBtn = $('#gridBtn');
+  const listBtn = $('#listBtn');
+  const menuEl = $('#menu');
+  const dlg = $('#dlg');
+  const promptDlg = $('#promptDlg');
+  const toastEl = $('#toast');
+  const toastText = $('#toastText');
+  const toastBtn = $('#toastBtn');
+  const fileInput = $('#fileInput');
+  const clearBtn = $('#clearBtn');
 
-  const ICONS = {
-    pin: '<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path class="fill" d="M9.8 1.8 14.2 6.2 12.4 6.9 10.1 9.2 10.4 12.3 9.6 13.1 6.9 10.4 6.9 10.4 2.9 14.4 1.6 14.4 1.6 13.1 5.6 9.1 2.9 6.4 3.7 5.6 6.8 5.9 9.1 3.6Z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>',
-    star: '<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path class="fill" d="m8 1.7 1.9 4 4.3.5-3.2 3 .9 4.3L8 11.3l-3.9 2.2.9-4.3-3.2-3 4.3-.5Z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>',
-    remove: '<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>',
-    all: '<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M8 4.6V8l2.4 1.5" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>',
-    day: '<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><rect x="2" y="3" width="12" height="11" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M2 6.5h12M5.5 1.5v3M10.5 1.5v3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>',
-    bigDoc: '<svg width="42" height="52" viewBox="0 0 42 52" aria-hidden="true"><path d="M5 2h22l11 11v35a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2Z" fill="var(--sheet)" stroke="currentColor" stroke-width="1.6"/><path d="M27 2v11h11" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M10 24h20M10 30h20M10 36h13" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" opacity=".55"/></svg>'
-  };
+  homeTab.innerHTML = ICONS.home;
+  $('#addBtn').innerHTML = ICONS.plus;
+  splitBtn.innerHTML = ICONS.split;
+  $('#searchIcon').outerHTML = ICONS.search;
+  gridBtn.innerHTML = ICONS.grid;
+  listBtn.innerHTML = ICONS.list;
 
-  const VIEWS = [
-    { id: 'pinned', label: 'Pinned', icon: 'pin', always: true, test: (r) => r.pinned,
-      empty: ['Nothing pinned yet', 'Pin a PDF to keep it at the top of every list. Pinned PDFs are never dropped from Recent.'] },
-    { id: 'favourites', label: 'Favourites', icon: 'star', always: true, test: (r) => r.favourite,
-      empty: ['No favourites yet', 'Star a PDF to collect it here. Favourites are never dropped from Recent.'] },
-    { sep: true },
-    { id: 'all', label: 'All recent', icon: 'all', always: true, test: () => true,
-      empty: ['No recent PDFs', 'PDFs you open will appear here.'] },
-    { id: 'today', label: 'Today', icon: 'day', test: (r) => bucketOf(r.lastOpened) === 'today' },
-    { id: 'yesterday', label: 'Yesterday', icon: 'day', test: (r) => bucketOf(r.lastOpened) === 'yesterday' },
-    { id: 'thisweek', label: 'This week', icon: 'day', test: (r) => bucketOf(r.lastOpened) === 'thisweek' },
-    { id: 'lastweek', label: 'Last week', icon: 'day', test: (r) => bucketOf(r.lastOpened) === 'lastweek' },
-    { id: 'thismonth', label: 'This month', icon: 'day', test: (r) => bucketOf(r.lastOpened) === 'thismonth' },
-    { id: 'older', label: 'Older', icon: 'day', test: (r) => bucketOf(r.lastOpened) === 'older' }
-  ];
-  const viewById = (id) => VIEWS.find((v) => v.id === id);
+  // ============================================================
+  // State
+  // ============================================================
+  /** Open tabs: {id, name, key (signature), url, file, handle, recordId, tabEl, frame} */
+  const tabs = [];
+  let activeId = HOME;
+  let nextTabId = 1;
+  let splitRightId = null;
+  let mru = [];                       // tab ids, most recently viewed first
+  let warnedManyTabs = false;
+
+  /** Remembered files: {id, name, size, sig, lastModified, lastOpened, handle, pinned, favourite, note, bookmarks[], addedAt} */
+  let records = [];
+  /** Collections: {id, name, kind: 'manual'|'folder', fileIds[], dirHandle, createdAt} */
+  let collections = [];
+  let savedSession = [];
+  const folderCache = new Map();      // collection id -> {status, items, error}
+  const fileCache = new Map();        // record id -> File (this session only)
 
   let currentView = 'all';
-  try { const saved = localStorage.getItem('sureshot.view'); if (saved && viewById(saved)) currentView = saved; } catch (err) { /* ignore */ }
+  let sortBy = 'recent';
+  let layout = 'grid';
+  try {
+    currentView = localStorage.getItem('sureshot.view') || 'all';
+    sortBy = localStorage.getItem('sureshot.sort') || 'recent';
+    layout = localStorage.getItem('sureshot.layout') || 'grid';
+  } catch (err) { /* storage unavailable */ }
+
+  let resolveReady;
+  const ready = new Promise((resolve) => { resolveReady = resolve; });
+
+  // ============================================================
+  // Storage (IndexedDB, in this app on this PC)
+  // ============================================================
+  let dbPromise = null;
+  function openDb() {
+    if (!dbPromise) {
+      dbPromise = new Promise((resolve, reject) => {
+        if (!('indexedDB' in window)) { reject(new Error('Storage isn’t available.')); return; }
+        const req = indexedDB.open('sureshot-pdf', 2);
+        req.onupgradeneeded = () => {
+          const db = req.result;
+          for (const name of ['session', 'thumbs', 'text']) {
+            if (!db.objectStoreNames.contains(name)) db.createObjectStore(name);
+          }
+        };
+        req.onsuccess = () => {
+          const db = req.result;
+          db.onversionchange = () => db.close();
+          resolve(db);
+        };
+        req.onerror = () => reject(req.error);
+        req.onblocked = () => reject(new Error('Close other Sureshot PDF windows and try again.'));
+      });
+    }
+    return dbPromise;
+  }
+  async function dbRun(store, mode, op) {
+    const db = await openDb();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(store, mode);
+      const req = op(tx.objectStore(store));
+      tx.oncomplete = () => resolve(req ? req.result : undefined);
+      tx.onerror = tx.onabort = () => reject(tx.error);
+    });
+  }
+  const dbGet = (store, key) => dbRun(store, 'readonly', (s) => s.get(key));
+  const dbPut = (store, key, value) => dbRun(store, 'readwrite', (s) => s.put(value, key));
+  const dbKeys = (store) => dbRun(store, 'readonly', (s) => s.getAllKeys());
+  async function dbEntries(store) {
+    const db = await openDb();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(store, 'readonly');
+      const st = tx.objectStore(store);
+      const keys = st.getAllKeys();
+      const values = st.getAll();
+      tx.oncomplete = () => resolve(keys.result.map((k, i) => [k, values.result[i]]));
+      tx.onerror = tx.onabort = () => reject(tx.error);
+    });
+  }
+
+  let saveRecordsTimer = null;
+  function saveRecords() {
+    clearTimeout(saveRecordsTimer);
+    saveRecordsTimer = setTimeout(() => { dbPut('session', 'recents', records).catch(() => {}); }, 150);
+  }
+  function saveCollections() {
+    dbPut('session', 'collections', collections).catch(() => {});
+  }
+  let saveSessionTimer = null;
+  function saveSession() {
+    clearTimeout(saveSessionTimer);
+    saveSessionTimer = setTimeout(() => {
+      dbPut('session', 'handles', tabs.filter((t) => t.handle).map((t) => t.handle)).catch(() => {});
+    }, 300);
+  }
+
+  // ============================================================
+  // Records (remembered files)
+  // ============================================================
+  const recordById = (id) => records.find((r) => r.id === id);
+  const collectionById = (id) => collections.find((c) => c.id === id);
+  const manualCollections = () => collections.filter((c) => c.kind === 'manual');
+  const inManualCollection = (id) => collections.some((c) => c.kind === 'manual' && c.fileIds.includes(id));
+  const isKept = (r) => r.pinned || r.favourite || !!(r.note && r.note.trim()) || (r.bookmarks && r.bookmarks.length > 0) || inManualCollection(r.id);
+
+  // Kept files stay forever; everything else is limited to the newest MAX_RECENTS.
+  function trimRecords() {
+    const opened = records.filter((r) => r.lastOpened).sort((a, b) => b.lastOpened - a.lastOpened);
+    const allowed = new Set();
+    let n = 0;
+    for (const r of opened) {
+      if (isKept(r)) continue;
+      n++;
+      if (n <= MAX_RECENTS) allowed.add(r.id);
+    }
+    records = records.filter((r) => isKept(r) || allowed.has(r.id));
+  }
+
+  async function findRecordByHandle(handle) {
+    for (const r of records) {
+      try {
+        if (await r.handle.isSameEntry(handle)) return r;
+      } catch (err) { /* stale handle */ }
+    }
+    return null;
+  }
+
+  let rememberChain = Promise.resolve();
+  function rememberFile(handle, file, opened) {
+    const run = rememberChain.then(async () => {
+      await ready;
+      let r = await findRecordByHandle(handle);
+      if (!r) {
+        r = { id: uid('r'), pinned: false, favourite: false, note: '', bookmarks: [], lastOpened: null, addedAt: Date.now() };
+        records.unshift(r);
+      }
+      r.handle = handle;
+      r.name = file.name;
+      r.size = file.size;
+      r.sig = sigOf(file);
+      r.lastModified = file.lastModified;
+      fileCache.set(r.id, file);
+      if (opened) {
+        r.lastOpened = Date.now();
+        trimRecords();
+      }
+      saveRecords();
+      return r;
+    });
+    rememberChain = run.catch(() => {});
+    return run;
+  }
+
+  async function ensurePermission(handle, mode, request) {
+    try {
+      let state = await handle.queryPermission({ mode: mode || 'read' });
+      if (state !== 'granted' && request) state = await handle.requestPermission({ mode: mode || 'read' });
+      return state === 'granted';
+    } catch (err) {
+      return false;
+    }
+  }
+
+  async function getRecordFile(r, request = true) {
+    if (!(await ensurePermission(r.handle, 'read', request))) throw permissionError(r.name);
+    const file = await r.handle.getFile();
+    if (sigOf(file) !== r.sig) {
+      r.name = file.name; r.size = file.size; r.sig = sigOf(file); r.lastModified = file.lastModified;
+      saveRecords();
+    }
+    fileCache.set(r.id, file);
+    return file;
+  }
+
+  function removeRecord(id, offerUndo) {
+    const index = records.findIndex((r) => r.id === id);
+    if (index < 0) return;
+    const [entry] = records.splice(index, 1);
+    const memberships = [];
+    for (const c of manualCollections()) {
+      const i = c.fileIds.indexOf(id);
+      if (i >= 0) { memberships.push([c, i]); c.fileIds.splice(i, 1); }
+    }
+    saveRecords();
+    if (memberships.length) saveCollections();
+    renderHomeSoon();
+    if (offerUndo) {
+      toast('Removed ' + entry.name + ' from the list. The file itself wasn’t deleted.', 'Undo', () => {
+        records.splice(Math.min(index, records.length), 0, entry);
+        for (const [c, i] of memberships) if (collections.includes(c)) c.fileIds.splice(Math.min(i, c.fileIds.length), 0, id);
+        saveRecords();
+        saveCollections();
+        renderHomeSoon();
+      });
+    }
+  }
+
+  // ============================================================
+  // Display items (a remembered file, or a PDF found in a linked folder)
+  // ============================================================
+  function itemFromRecord(r) {
+    return { key: r.id, record: r, name: r.name, size: r.size, sig: r.sig, when: r.lastOpened, modified: r.lastModified, path: null, handle: r.handle };
+  }
+  function itemFromFolder(f) {
+    const r = records.find((x) => x.sig && x.sig === f.sig) || null;
+    return { key: r ? r.id : f.key, record: r, name: f.name, size: f.size, sig: f.sig, when: r ? r.lastOpened : null, modified: f.lastModified, path: f.path, handle: f.handle, folderItem: f };
+  }
+  function findOpenTabForItem(item) {
+    if (item.record) {
+      const t = tabs.find((x) => x.recordId === item.record.id);
+      if (t) return t;
+    }
+    return item.sig ? tabs.find((x) => x.key === item.sig) || null : null;
+  }
+  async function ensureRecordForItem(item) {
+    if (item.record) return item.record;
+    const file = await item.handle.getFile();
+    const r = await rememberFile(item.handle, file, false);
+    item.record = r;
+    return r;
+  }
+  async function itemFile(item) {
+    const t = findOpenTabForItem(item);
+    if (t) return t.file;
+    if (item.record) return getRecordFile(item.record);
+    return item.handle.getFile();
+  }
+  function sortItems(items) {
+    const byName = (a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
+    const cmp = {
+      recent: (a, b) => (b.when || b.modified || 0) - (a.when || a.modified || 0),
+      name: byName,
+      size: (a, b) => (b.size || 0) - (a.size || 0)
+    }[sortBy] || byName;
+    const pinned = (it) => (it.record && it.record.pinned ? 1 : 0);
+    return items.slice().sort((a, b) => pinned(b) - pinned(a) || cmp(a, b) || byName(a, b));
+  }
+
+  // ============================================================
+  // Tabs
+  // ============================================================
+  const findTab = (id) => tabs.find((t) => t.id === id);
+
+  function openFile(file, handle, page) {
+    if (!file) return null;
+    if (!isPdf(file)) {
+      toast('Skipped ' + file.name + '. Sureshot PDF opens PDF files only.');
+      return null;
+    }
+    const key = sigOf(file);
+    const existing = tabs.find((t) => t.key === key);
+    if (existing) {
+      if (handle && !existing.handle) existing.handle = handle;
+      activate(existing.id);
+      if (page) goToPage(existing, page);
+      return existing;
+    }
+
+    const id = nextTabId++;
+    const url = URL.createObjectURL(new Blob([file], { type: 'application/pdf' }));
+
+    const close = el('button', { type: 'button', class: 'close', tabindex: '-1', title: 'Close', 'aria-label': 'Close ' + file.name, html: ICONS.xs });
+    const tabEl = el('div', {
+      class: 'tab', id: 'tab-' + id, title: file.name, tabindex: '-1', role: 'tab',
+      'aria-controls': 'frame-' + id, 'aria-selected': 'false', draggable: 'true'
+    }, el('span', { class: 'mark', 'aria-hidden': 'true' }), el('span', { class: 'title', text: baseName(file.name) }), close);
+
+    const frame = el('iframe', { class: 'frame', id: 'frame-' + id, title: file.name, role: 'tabpanel', 'aria-labelledby': 'tab-' + id });
+    frame.src = url + (page ? '#page=' + page : '');
+
+    const tab = { id, name: file.name, key, url, file, handle: handle || null, recordId: null, tabEl, frame };
+
+    tabEl.addEventListener('click', (e) => { if (!e.target.closest('.close')) activate(id); });
+    tabEl.addEventListener('mousedown', (e) => { if (e.button === 1) e.preventDefault(); });
+    tabEl.addEventListener('auxclick', (e) => { if (e.button === 1) { e.preventDefault(); closeTab(id); } });
+    tabEl.addEventListener('keydown', onTabKey);
+    tabEl.addEventListener('contextmenu', (e) => { e.preventDefault(); showTabMenu(tab, { x: e.clientX, y: e.clientY }); });
+    tabEl.addEventListener('dragstart', (e) => {
+      draggingTab = tab;
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('application/x-sureshot-tab', String(id));
+      tabEl.classList.add('dragging');
+    });
+    tabEl.addEventListener('dragend', () => {
+      tabEl.classList.remove('dragging');
+      draggingTab = null;
+      const order = Array.from(tabsEl.children);
+      tabs.sort((a, b) => order.indexOf(a.tabEl) - order.indexOf(b.tabEl));
+      saveSession();
+    });
+    close.addEventListener('click', (e) => { e.stopPropagation(); closeTab(id); });
+
+    stage.insertBefore(frame, splitter);
+    tabsEl.appendChild(tabEl);
+    tabs.push(tab);
+    activate(id);
+    saveSession();
+
+    // Build the preview and search text once the viewer has had a moment to load.
+    setTimeout(() => scheduleIndex(key, () => Promise.resolve(file)), 1500);
+
+    if (tabs.length >= MANY_TABS && !warnedManyTabs) {
+      warnedManyTabs = true;
+      toast('You have ' + tabs.length + ' PDFs open. Each tab uses memory, so close the ones you’re finished with.');
+    }
+    return tab;
+  }
+
+  function goToPage(tab, page) {
+    tab.frame.src = tab.url + '#page=' + page;
+  }
+
+  function activate(id) {
+    if (id !== HOME && splitRightId === id) {
+      // Clicking the right-hand PDF swaps the two panes.
+      splitRightId = activeId !== HOME && findTab(activeId) ? activeId : null;
+    }
+    activeId = id;
+    const onHome = id === HOME;
+    if (!onHome) mru = [id].concat(mru.filter((x) => x !== id));
+
+    homeTab.classList.toggle('active', onHome);
+    homeTab.setAttribute('aria-selected', String(onHome));
+    homeTab.tabIndex = onHome ? 0 : -1;
+    homeEl.hidden = !onHome;
+
+    for (const t of tabs) {
+      const on = t.id === id;
+      t.tabEl.classList.toggle('active', on);
+      t.tabEl.setAttribute('aria-selected', String(on));
+      t.tabEl.tabIndex = on ? 0 : -1;
+    }
+    layoutFrames();
+    const t = findTab(id);
+    document.title = t ? t.name + ' — ' + APP : APP;
+    if (t) t.tabEl.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    if (onHome) renderHome();
+  }
+
+  function layoutFrames() {
+    if (splitRightId !== null && !findTab(splitRightId)) splitRightId = null;
+    const split = activeId !== HOME && splitRightId !== null && splitRightId !== activeId;
+    for (const t of tabs) {
+      const left = t.id === activeId;
+      const right = split && t.id === splitRightId;
+      t.frame.classList.toggle('active', left || right);
+      t.frame.classList.toggle('pane-left', left && split);
+      t.frame.classList.toggle('pane-right', right);
+      t.tabEl.classList.toggle('partner', right);
+    }
+    splitter.hidden = !split;
+    splitBtn.hidden = tabs.length < 2;
+    splitBtn.setAttribute('aria-pressed', String(split));
+    splitBtn.title = split ? 'Close split view' : 'Split view: show two PDFs side by side';
+    splitBtn.setAttribute('aria-label', split ? 'Close split view' : 'Split view');
+  }
+
+  function showBeside(tabId) {
+    const left = activeId !== HOME && activeId !== tabId ? activeId : mru.find((x) => x !== tabId && findTab(x));
+    if (!left) { toast('Open another PDF first, then show the two side by side.'); return; }
+    splitRightId = tabId;
+    activate(left);
+  }
+  function toggleSplit() {
+    const split = activeId !== HOME && splitRightId !== null && splitRightId !== activeId;
+    if (split) { splitRightId = null; layoutFrames(); return; }
+    const left = activeId !== HOME ? activeId : mru.find((x) => findTab(x));
+    const right = mru.find((x) => x !== left && findTab(x)) || (tabs.find((t) => t.id !== left) || {}).id;
+    if (!left || !right) return;
+    splitRightId = right;
+    activate(left);
+  }
+
+  function closeTab(id) {
+    const index = tabs.findIndex((t) => t.id === id);
+    if (index < 0) return;
+    const [t] = tabs.splice(index, 1);
+    const hadFocus = t.tabEl.contains(document.activeElement);
+    t.tabEl.remove();
+    t.frame.remove();
+    setTimeout(() => URL.revokeObjectURL(t.url), 1000);
+    mru = mru.filter((x) => x !== id);
+    if (splitRightId === id) splitRightId = null;
+
+    if (activeId === id) {
+      const next = (splitRightId !== null && findTab(splitRightId)) || findTab(mru[0]) || tabs[Math.min(index, tabs.length - 1)];
+      if (next && splitRightId === next.id) splitRightId = null;
+      activate(next ? next.id : HOME);
+      if (hadFocus) (next ? next.tabEl : homeTab).focus();
+    } else {
+      layoutFrames();
+      renderHomeSoon();
+    }
+    saveSession();
+  }
+  function closeOtherTabs(keepId) {
+    for (const t of tabs.slice()) if (t.id !== keepId) closeTab(t.id);
+  }
+
+  function tabOrder() { return [HOME].concat(tabs.map((t) => t.id)); }
+  function elOf(id) { return id === HOME ? homeTab : findTab(id).tabEl; }
+  function cycleTabs(step) {
+    const order = tabOrder();
+    const i = order.indexOf(activeId);
+    const next = order[(i + step + order.length) % order.length];
+    activate(next);
+  }
+  function onTabKey(e) {
+    const order = tabOrder();
+    const current = e.currentTarget === homeTab ? HOME : (tabs.find((t) => t.tabEl === e.currentTarget) || {}).id;
+    const i = order.indexOf(current);
+    if (i < 0) return;
+    let j = null;
+    if (e.key === 'ArrowRight') j = (i + 1) % order.length;
+    else if (e.key === 'ArrowLeft') j = (i - 1 + order.length) % order.length;
+    else if (e.key === 'Home') j = 0;
+    else if (e.key === 'End') j = order.length - 1;
+    else if (e.key === 'Delete' && current !== HOME) { e.preventDefault(); closeTab(current); return; }
+    else if ((e.key === 'Enter' || e.key === ' ') && current === HOME) { e.preventDefault(); activate(HOME); return; }
+    else if ((e.key === 'ContextMenu' || (e.shiftKey && e.key === 'F10')) && current !== HOME) {
+      e.preventDefault();
+      showTabMenu(findTab(current), e.currentTarget);
+      return;
+    }
+    if (j !== null) {
+      e.preventDefault();
+      activate(order[j]);
+      elOf(order[j]).focus();
+    }
+  }
+  homeTab.addEventListener('click', () => activate(HOME));
+  homeTab.addEventListener('keydown', onTabKey);
+  splitBtn.addEventListener('click', toggleSplit);
+
+  // Reordering tabs by dragging
+  let draggingTab = null;
+  tabsEl.addEventListener('dragover', (e) => {
+    if (!draggingTab) return;
+    e.preventDefault();
+    const target = e.target.closest('.tab');
+    if (!target || target === draggingTab.tabEl || target.parentNode !== tabsEl) return;
+    const r = target.getBoundingClientRect();
+    const after = e.clientX > r.left + r.width / 2;
+    tabsEl.insertBefore(draggingTab.tabEl, after ? target.nextSibling : target);
+  });
+  tabsEl.addEventListener('drop', (e) => { if (draggingTab) e.preventDefault(); });
+
+  // Resizing split view
+  splitter.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    splitter.setPointerCapture(e.pointerId);
+    stage.classList.add('resizing');
+    const move = (ev) => {
+      const r = stage.getBoundingClientRect();
+      stage.style.setProperty('--split', clamp(((ev.clientX - r.left) / r.width) * 100, 20, 80) + '%');
+    };
+    const up = () => {
+      stage.classList.remove('resizing');
+      splitter.removeEventListener('pointermove', move);
+      splitter.removeEventListener('pointerup', up);
+      splitter.removeEventListener('pointercancel', up);
+    };
+    splitter.addEventListener('pointermove', move);
+    splitter.addEventListener('pointerup', up);
+    splitter.addEventListener('pointercancel', up);
+  });
+  splitter.addEventListener('keydown', (e) => {
+    if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+    e.preventDefault();
+    const current = parseFloat(getComputedStyle(stage).getPropertyValue('--split')) || 50;
+    stage.style.setProperty('--split', clamp(current + (e.key === 'ArrowLeft' ? -5 : 5), 20, 80) + '%');
+  });
+
+  // ============================================================
+  // Opening files
+  // ============================================================
+  async function openAndRemember(file, handle, page) {
+    const tab = openFile(file, handle, page);
+    if (tab && handle) {
+      try {
+        const r = await rememberFile(handle, file, true);
+        tab.recordId = r.id;
+      } catch (err) { /* remembering is a convenience */ }
+      renderHomeSoon();
+    }
+    return tab;
+  }
+
+  async function openHandle(handle, page) {
+    let file;
+    try {
+      file = await handle.getFile();
+    } catch (err) {
+      toast('Couldn’t open ' + handle.name + '. ' + friendly(err));
+      return null;
+    }
+    return openAndRemember(file, handle, page);
+  }
+
+  async function openRecord(r, page) {
+    const open = tabs.find((t) => t.recordId === r.id);
+    if (open) {
+      r.lastOpened = Date.now();
+      saveRecords();
+      activate(open.id);
+      if (page) goToPage(open, page);
+      renderHomeSoon();
+      return open;
+    }
+    let file;
+    try {
+      file = await getRecordFile(r);
+    } catch (err) {
+      if (err.name === 'NotFoundError') {
+        toast(r.name + ' was moved, renamed or deleted.', 'Remove from list', () => removeRecord(r.id, false));
+      } else {
+        toast(err.name === 'PermissionDenied' ? err.message : 'Couldn’t open ' + r.name + '. ' + friendly(err));
+      }
+      return null;
+    }
+    return openAndRemember(file, r.handle, page);
+  }
+
+  async function openItem(item, page) {
+    if (item.record) return openRecord(item.record, page);
+    try {
+      const file = await item.handle.getFile();
+      return await openAndRemember(file, item.handle, page);
+    } catch (err) {
+      toast('Couldn’t open ' + item.name + '. ' + friendly(err));
+      return null;
+    }
+  }
+
+  async function openBeside(item) {
+    const left = activeId !== HOME ? activeId : mru.find((x) => findTab(x));
+    const tab = await openItem(item);
+    if (!tab) return;
+    if (!left || left === tab.id || !findTab(left)) { toast('Open another PDF first, then show the two side by side.'); return; }
+    splitRightId = tab.id;
+    activate(left);
+  }
+
+  // Lets the person pick PDFs; returns {file, handle} pairs.
+  async function pickPdfs(multiple) {
+    if ('showOpenFilePicker' in window) {
+      try {
+        const handles = await window.showOpenFilePicker({
+          multiple: !!multiple,
+          types: [{ description: 'PDF files', accept: { 'application/pdf': ['.pdf'] } }]
+        });
+        const out = [];
+        for (const h of handles) out.push({ file: await h.getFile(), handle: h });
+        return out;
+      } catch (err) {
+        if (err.name !== 'AbortError') toast('Couldn’t show the file picker. ' + friendly(err));
+        return [];
+      }
+    }
+    const files = await pickWithInput('application/pdf,.pdf', multiple);
+    return files.map((file) => ({ file, handle: null }));
+  }
+  async function pickImages(multiple) {
+    if ('showOpenFilePicker' in window) {
+      try {
+        const handles = await window.showOpenFilePicker({
+          multiple: !!multiple,
+          types: [{ description: 'Images', accept: { 'image/*': ['.jpg', '.jpeg', '.png', '.webp', '.gif', '.bmp'] } }]
+        });
+        const out = [];
+        for (const h of handles) out.push(await h.getFile());
+        return out;
+      } catch (err) {
+        if (err.name !== 'AbortError') toast('Couldn’t show the file picker. ' + friendly(err));
+        return [];
+      }
+    }
+    return pickWithInput('image/*', multiple);
+  }
+  function pickWithInput(accept, multiple) {
+    return new Promise((resolve) => {
+      fileInput.accept = accept;
+      fileInput.multiple = !!multiple;
+      fileInput.value = '';
+      const done = () => {
+        fileInput.removeEventListener('change', done);
+        fileInput.removeEventListener('cancel', done);
+        resolve(Array.from(fileInput.files || []));
+      };
+      fileInput.addEventListener('change', done);
+      fileInput.addEventListener('cancel', done);
+      fileInput.click();
+    });
+  }
+
+  async function chooseAndOpen() {
+    const picked = await pickPdfs(true);
+    for (const p of picked) {
+      if (p.handle) await openAndRemember(p.file, p.handle);
+      else openFile(p.file, null);
+    }
+  }
+  $('#addBtn').addEventListener('click', chooseAndOpen);
+
+  // PDFs opened from File Explorer ("Open with > Sureshot PDF")
+  if ('launchQueue' in window) {
+    window.launchQueue.setConsumer(async (params) => {
+      if (!params.files || !params.files.length) return;
+      for (const h of params.files) if (h.kind === 'file') await openHandle(h);
+    });
+  }
+
+  // Drag and drop from File Explorer
+  let dragDepth = 0;
+  const hasFiles = (e) => !!e.dataTransfer && Array.from(e.dataTransfer.types || []).includes('Files');
+  window.addEventListener('dragenter', (e) => {
+    if (!hasFiles(e) || dlg.open || promptDlg.open) return;
+    e.preventDefault();
+    dragDepth++;
+    dropEl.hidden = false;
+  });
+  window.addEventListener('dragover', (e) => {
+    if (!hasFiles(e)) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = dlg.open || promptDlg.open ? 'none' : 'copy';
+  });
+  window.addEventListener('dragleave', (e) => {
+    if (!hasFiles(e)) return;
+    dragDepth = Math.max(0, dragDepth - 1);
+    if (dragDepth === 0) dropEl.hidden = true;
+  });
+  window.addEventListener('drop', async (e) => {
+    if (!hasFiles(e)) return;
+    e.preventDefault();
+    dragDepth = 0;
+    dropEl.hidden = true;
+    if (dlg.open || promptDlg.open) return;
+    // Everything must be read from the drop event before the first await.
+    const entries = Array.from(e.dataTransfer.items)
+      .filter((item) => item.kind === 'file')
+      .map((item) => ({
+        file: item.getAsFile(),
+        handle: item.getAsFileSystemHandle ? item.getAsFileSystemHandle().catch(() => null) : Promise.resolve(null)
+      }));
+    for (const entry of entries) {
+      const handle = await entry.handle;
+      if (handle && handle.kind === 'file') await openAndRemember(entry.file, handle);
+      else openFile(entry.file, null);
+    }
+  });
+
+  // ============================================================
+  // Collections
+  // ============================================================
+  function collectionCount(col) {
+    if (col.kind === 'manual') return col.fileIds.length;
+    const cache = folderCache.get(col.id);
+    return cache && cache.status === 'ok' ? cache.items.length : null;
+  }
+
+  function toggleMembership(col, r) {
+    const i = col.fileIds.indexOf(r.id);
+    if (i >= 0) {
+      col.fileIds.splice(i, 1);
+      toast('Removed ' + r.name + ' from “' + col.name + '”.');
+    } else {
+      col.fileIds.push(r.id);
+      toast('Added ' + r.name + ' to “' + col.name + '”.');
+    }
+    saveCollections();
+    saveRecords();
+    renderHomeSoon();
+  }
+
+  function removeFromCollection(col, recordId, offerUndo) {
+    const i = col.fileIds.indexOf(recordId);
+    if (i < 0) return;
+    col.fileIds.splice(i, 1);
+    saveCollections();
+    renderHomeSoon();
+    const r = recordById(recordId);
+    if (offerUndo) {
+      toast('Removed ' + (r ? r.name : 'the PDF') + ' from “' + col.name + '”.', 'Undo', () => {
+        if (!col.fileIds.includes(recordId)) col.fileIds.splice(Math.min(i, col.fileIds.length), 0, recordId);
+        saveCollections();
+        renderHomeSoon();
+      });
+    }
+  }
+
+  async function createCollectionFlow(opts = {}) {
+    const col = await newCollectionDialog(opts);
+    if (!col) return null;
+    collections.push(col);
+    saveCollections();
+    if (col.kind === 'folder') {
+      folderCache.set(col.id, { status: 'scanning', items: [] });
+      scanFolder(col, { request: false });
+    }
+    if (opts.show !== false) {
+      activate(HOME);
+      setView('c:' + col.id);
+    } else {
+      renderHomeSoon();
+    }
+    toast('Created “' + col.name + '”.' + (opts.fileIds && opts.fileIds.length && col.kind === 'manual' ? ' ' + plural(opts.fileIds.length, 'PDF') + ' added.' : ''));
+    return col;
+  }
+
+  async function renameCollection(col) {
+    const name = await promptDialog({ title: 'Rename collection', label: 'Name', value: col.name, okLabel: 'Rename' });
+    if (!name) return;
+    col.name = name;
+    saveCollections();
+    renderHomeSoon();
+  }
+
+  function deleteCollection(col) {
+    const index = collections.indexOf(col);
+    if (index < 0) return;
+    collections.splice(index, 1);
+    if (currentView === 'c:' + col.id) currentView = 'all';
+    saveCollections();
+    renderHomeSoon();
+    toast('Deleted the collection “' + col.name + '”. Your PDFs weren’t affected.', 'Undo', () => {
+      collections.splice(Math.min(index, collections.length), 0, col);
+      saveCollections();
+      renderHomeSoon();
+    });
+  }
+
+  async function openAll(col) {
+    let items;
+    if (col.kind === 'folder') {
+      if (!(await ensurePermission(col.dirHandle, 'read', true))) {
+        toast('Sureshot PDF needs permission to read the folder “' + col.dirHandle.name + '”.');
+        return;
+      }
+      const cache = folderCache.get(col.id);
+      if (!cache || cache.status !== 'ok') await scanFolder(col, { request: false });
+      items = ((folderCache.get(col.id) || {}).items || []).map(itemFromFolder);
+    } else {
+      items = col.fileIds.map(recordById).filter(Boolean).map(itemFromRecord);
+    }
+    if (!items.length) { toast('“' + col.name + '” has no PDFs to open.'); return; }
+    if (items.length > OPEN_ALL_CONFIRM && !window.confirm('Open all ' + items.length + ' PDFs in “' + col.name + '”? Each open PDF uses memory.')) return;
+
+    let first = null;
+    let failed = 0;
+    for (const item of sortItems(items)) {
+      let tab = findOpenTabForItem(item);
+      if (!tab) {
+        try {
+          const file = item.record ? await getRecordFile(item.record) : await item.handle.getFile();
+          tab = await openAndRemember(file, item.record ? item.record.handle : item.handle);
+        } catch (err) {
+          failed++;
+        }
+      }
+      if (tab && !first) first = tab;
+    }
+    if (first) activate(first.id);
+    if (failed) toast(plural(failed, 'PDF') + ' couldn’t be opened. Open them one at a time to allow access, or they may have been moved.');
+  }
+
+  async function saveTabsAsCollection() {
+    const ids = Array.from(new Set(tabs.map((t) => t.recordId).filter(Boolean)));
+    if (!ids.length) { toast('None of the open PDFs can be added to a collection.'); return; }
+    const name = await promptDialog({
+      title: 'Save open tabs as a collection',
+      label: 'Collection name',
+      value: 'Session ' + new Date().toLocaleDateString([], { day: 'numeric', month: 'short' }),
+      okLabel: 'Save'
+    });
+    if (!name) return;
+    const col = { id: uid('c'), name, kind: 'manual', fileIds: ids, createdAt: Date.now() };
+    collections.push(col);
+    saveCollections();
+    saveRecords();
+    renderHomeSoon();
+    const skipped = tabs.length - ids.length;
+    toast('Saved ' + plural(ids.length, 'PDF') + ' as “' + name + '”.' + (skipped ? ' ' + plural(skipped, 'tab') + ' couldn’t be added.' : ''), 'Show', () => {
+      activate(HOME);
+      setView('c:' + col.id);
+    });
+  }
+
+  async function scanFolder(col, { request } = {}) {
+    const dir = col.dirHandle;
+    if (!dir) return;
+    if (!(await ensurePermission(dir, 'read', request))) {
+      folderCache.set(col.id, { status: 'needs-permission', items: [] });
+      renderHomeSoon();
+      return;
+    }
+    const previous = folderCache.get(col.id);
+    folderCache.set(col.id, { status: 'scanning', items: previous ? previous.items : [] });
+    renderHomeSoon();
+    const items = [];
+    let truncated = false;
+    async function walk(handle, prefix, depth) {
+      for await (const [name, entry] of handle.entries()) {
+        if (items.length >= FOLDER_LIMIT) { truncated = true; return; }
+        if (entry.kind === 'file' && /\.pdf$/i.test(name)) {
+          const file = await entry.getFile();
+          items.push({ key: 'f:' + col.id + ':' + prefix + name, name, path: prefix, handle: entry, size: file.size, lastModified: file.lastModified, sig: sigOf(file) });
+        } else if (entry.kind === 'directory' && depth < 4 && !name.startsWith('.')) {
+          await walk(entry, prefix + name + '/', depth + 1);
+        }
+      }
+    }
+    try {
+      await walk(dir, '', 0);
+      folderCache.set(col.id, { status: 'ok', items, truncated });
+    } catch (err) {
+      folderCache.set(col.id, { status: 'error', items: [], error: friendly(err) });
+    }
+    renderHomeSoon();
+  }
+
+  function indexFolder(col) {
+    const cache = folderCache.get(col.id);
+    if (!cache || cache.status !== 'ok') return;
+    for (const f of cache.items) scheduleIndex(f.sig, () => f.handle.getFile());
+    renderHomeSoon();
+  }
+
+  // ============================================================
+  // Previews and text search index (built with PDF.js)
+  // ============================================================
+  const scriptLoads = {};
+  function loadScript(url) {
+    if (!scriptLoads[url]) {
+      scriptLoads[url] = new Promise((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = url;
+        s.crossOrigin = 'anonymous';
+        s.onload = resolve;
+        s.onerror = () => {
+          delete scriptLoads[url];
+          s.remove();
+          reject(new Error('Couldn’t download a part of Sureshot PDF. Check your internet connection and try again.'));
+        };
+        document.head.appendChild(s);
+      });
+    }
+    return scriptLoads[url];
+  }
+  async function getPdfjs() {
+    await loadScript(CDN.pdfjs);
+    window.pdfjsLib.GlobalWorkerOptions.workerSrc = CDN.pdfjsWorker;
+    return window.pdfjsLib;
+  }
+  async function getPdfLib() {
+    await loadScript(CDN.pdflib);
+    return window.PDFLib;
+  }
+  async function openPdfjsDoc(bytes) {
+    const pdfjs = await getPdfjs();
+    return pdfjs.getDocument({ data: bytes.slice(), isEvalSupported: false }).promise;
+  }
+
+  const indexedSigs = new Set();
+  const indexQueue = [];
+  let indexing = false;
+  let textCache = null;              // sig -> [page text]
+  const thumbUrls = new Map();       // sig -> object URL or null
+
+  function scheduleIndex(sig, getFile) {
+    if (!sig || indexedSigs.has(sig) || indexQueue.some((q) => q.sig === sig)) return;
+    indexQueue.push({ sig, getFile });
+    runIndexQueue();
+  }
+  async function runIndexQueue() {
+    if (indexing) return;
+    indexing = true;
+    try {
+      while (indexQueue.length) {
+        const job = indexQueue.shift();
+        if (indexedSigs.has(job.sig)) continue;
+        try {
+          const file = await job.getFile();
+          await indexFile(job.sig, file);
+        } catch (err) {
+          // Unreadable or protected files are recorded as empty so they aren't retried endlessly.
+          await dbPut('text', job.sig, { pages: [], failed: true, indexedAt: Date.now() }).catch(() => {});
+          if (textCache) textCache.set(job.sig, []);
+        }
+        indexedSigs.add(job.sig);
+        onIndexed(job.sig);
+        await idle();
+      }
+    } finally {
+      indexing = false;
+      if (activeId === HOME && !searchEl.value.trim()) renderHomeSoon();
+    }
+  }
+
+  async function indexFile(sig, file) {
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    const doc = await openPdfjsDoc(bytes);
+    try {
+      const first = await doc.getPage(1);
+      const base = first.getViewport({ scale: 1 });
+      const viewport = first.getViewport({ scale: 360 / base.width });
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.round(viewport.width);
+      canvas.height = Math.min(Math.round(viewport.height), 720);
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      await first.render({ canvasContext: ctx, viewport }).promise;
+      const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.82));
+      if (blob) await dbPut('thumbs', sig, blob);
+
+      const pages = [];
+      let total = 0;
+      for (let i = 1; i <= doc.numPages && total < TEXT_LIMIT; i++) {
+        const page = i === 1 ? first : await doc.getPage(i);
+        const content = await page.getTextContent();
+        let text = content.items.map((it) => it.str + (it.hasEOL ? ' ' : '')).join(' ').replace(/\s+/g, ' ').trim();
+        if (total + text.length > TEXT_LIMIT) text = text.slice(0, TEXT_LIMIT - total);
+        total += text.length;
+        pages.push(text);
+        if (i % 8 === 0) await idle();
+      }
+      await dbPut('text', sig, { pages, numPages: doc.numPages, indexedAt: Date.now() });
+      if (textCache) textCache.set(sig, pages);
+    } finally {
+      doc.destroy();
+    }
+  }
+
+  function onIndexed(sig) {
+    thumbUrls.delete(sig);
+    document.querySelectorAll('img.thumb').forEach((img) => {
+      if (img.dataset.sig === sig) { img.removeAttribute('src'); hydrateThumb(img); }
+    });
+    if (activeId === HOME && currentView.startsWith('c:')) {
+      const col = collectionById(currentView.slice(2));
+      if (col && col.kind === 'folder' && !searchEl.value.trim()) viewSub.textContent = folderSubText(col);
+    }
+    if (activeId === HOME && searchEl.value.trim()) renderHomeSoon();
+  }
+
+  async function thumbUrl(sig) {
+    if (thumbUrls.has(sig)) return thumbUrls.get(sig);
+    const blob = await dbGet('thumbs', sig).catch(() => null);
+    const url = blob ? URL.createObjectURL(blob) : null;
+    thumbUrls.set(sig, url);
+    return url;
+  }
+  async function hydrateThumb(img) {
+    const url = await thumbUrl(img.dataset.sig);
+    if (url && img.isConnected) {
+      img.src = url;
+      img.parentElement.classList.add('has-thumb');
+    }
+  }
+  function hydrateThumbs(root) {
+    root.querySelectorAll('img.thumb[data-sig]:not([src])').forEach(hydrateThumb);
+  }
+
+  async function loadTextCache() {
+    if (textCache) return textCache;
+    const entries = await dbEntries('text').catch(() => []);
+    textCache = new Map(entries.map(([k, v]) => [k, v && Array.isArray(v.pages) ? v.pages : []]));
+    return textCache;
+  }
+
+  // ============================================================
+  // Home: views
+  // ============================================================
+  const LIBRARY_VIEWS = [
+    { id: 'pinned', label: 'Pinned', icon: 'pin', test: (r) => r.pinned,
+      empty: ['Nothing pinned yet', 'Pin a PDF to keep it at the top of every list. Pinned PDFs are never dropped from your library.'] },
+    { id: 'favourites', label: 'Favourites', icon: 'star', test: (r) => r.favourite,
+      empty: ['No favourites yet', 'Star a PDF to collect it here. Favourites are never dropped from your library.'] },
+    { id: 'all', label: 'All recent', icon: 'clock', test: (r) => !!r.lastOpened,
+      empty: ['No recent PDFs', 'PDFs you open will appear here.'] }
+  ];
+  const DATE_VIEWS = [
+    ['today', 'Today'], ['yesterday', 'Yesterday'], ['thisweek', 'This week'],
+    ['lastweek', 'Last week'], ['thismonth', 'This month'], ['older', 'Older']
+  ].map(([id, label]) => ({ id, label, icon: 'day', test: (r) => bucketOf(r.lastOpened) === id, empty: ['Nothing here', 'No PDFs were opened in this period.'] }));
+  const ALL_VIEWS = LIBRARY_VIEWS.concat(DATE_VIEWS);
+  const viewById = (id) => ALL_VIEWS.find((v) => v.id === id);
+
+  let currentItems = new Map();
+  let currentCtx = { kind: 'library' };
 
   function setView(id) {
     currentView = id;
     try { localStorage.setItem('sureshot.view', id); } catch (err) { /* ignore */ }
     if (searchEl.value) searchEl.value = '';
     renderHome();
+    $('#content').scrollTop = 0;
   }
 
-  // Pinned first, then most recently opened.
-  const byPinThenRecent = (a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0) || b.lastOpened - a.lastOpened;
-
-  function renderNav() {
-    const nav = $('#nav');
-    nav.replaceChildren();
-    for (const v of VIEWS) {
-      if (v.sep) {
-        const sep = document.createElement('div');
-        sep.className = 'nav-sep';
-        sep.setAttribute('role', 'separator');
-        nav.appendChild(sep);
-        continue;
-      }
-      const count = recents.filter(v.test).length;
-      if (!v.always && count === 0 && currentView !== v.id) continue;
-
-      const item = document.createElement('button');
-      item.type = 'button';
-      item.className = 'nav-item';
-      item.dataset.view = v.id;
-      if (v.id === currentView && !searchEl.value.trim()) item.setAttribute('aria-current', 'true');
-
-      const icon = document.createElement('span');
-      icon.className = 'nav-icon';
-      icon.innerHTML = ICONS[v.icon];
-      const label = document.createElement('span');
-      label.className = 'nav-label';
-      label.textContent = v.label;
-      const num = document.createElement('span');
-      num.className = 'nav-count';
-      num.textContent = count ? String(count) : '';
-      item.append(icon, label, num);
-      nav.appendChild(item);
-    }
+  let renderQueued = false;
+  function renderHomeSoon() {
+    if (renderQueued) return;
+    renderQueued = true;
+    requestAnimationFrame(() => {
+      renderQueued = false;
+      if (activeId === HOME) renderHome();
+    });
   }
 
-  function makeCard(r, openIds) {
-    const card = document.createElement('article');
-    card.className = 'card' + (r.pinned ? ' is-pinned' : '');
+  function button(cls, text, onclick, extra) {
+    return el('button', Object.assign({ type: 'button', class: cls, text, onclick }, extra || {}));
+  }
+  function iconButton(icon, label, onclick, extra) {
+    return el('button', Object.assign({ type: 'button', class: 'icon-btn bordered', title: label, 'aria-label': label, html: ICONS[icon], onclick }, extra || {}));
+  }
 
-    const open = document.createElement('button');
-    open.type = 'button';
-    open.className = 'card-open';
-    open.dataset.id = r.id;
-    open.title = 'Open ' + r.name;
-
-    const art = document.createElement('span');
-    art.className = 'card-art';
-    art.innerHTML = ICONS.bigDoc;
-    if (openIds.has(r.id)) {
-      const badge = document.createElement('span');
-      badge.className = 'card-badge';
-      const mark = document.createElement('span');
-      mark.className = 'mark on';
-      mark.setAttribute('aria-hidden', 'true');
-      badge.append(mark, document.createTextNode('In a tab'));
-      art.appendChild(badge);
+  function commonActions() {
+    const actions = [];
+    if (savedSession.length && !tabs.length) {
+      actions.push(button('secondary', savedSession.length === 1 ? 'Reopen last session’s PDF' : 'Reopen last session’s ' + savedSession.length + ' PDFs', restoreSession));
     }
+    if (tabs.length) actions.push(button('secondary', 'Save open tabs as collection', saveTabsAsCollection));
+    actions.push(button('primary', 'Choose PDFs', chooseAndOpen));
+    return actions;
+  }
 
-    const body = document.createElement('span');
-    body.className = 'card-body';
-    const name = document.createElement('span');
-    name.className = 'card-name';
-    name.textContent = r.name.replace(/\.pdf$/i, '');
-    const meta = document.createElement('span');
-    meta.className = 'card-meta';
-    const when = document.createElement('span');
-    when.textContent = whenText(r.lastOpened);
-    const size = document.createElement('span');
-    size.textContent = sizeText(r.size);
-    meta.append(when, size);
-    body.append(name, meta);
-    open.append(art, body);
-
-    const actions = document.createElement('div');
-    actions.className = 'card-actions';
-    const mk = (cls, icon, pressed, onLabel, offLabel) => {
-      const b = document.createElement('button');
-      b.type = 'button';
-      b.className = 'act ' + cls;
-      b.dataset.id = r.id;
-      if (pressed !== null) b.setAttribute('aria-pressed', String(pressed));
-      const text = pressed ? onLabel : offLabel;
-      b.title = text;
-      b.setAttribute('aria-label', text + ': ' + r.name);
-      b.innerHTML = ICONS[icon];
-      return b;
-    };
-    actions.append(
-      mk('pin', 'pin', !!r.pinned, 'Unpin', 'Pin'),
-      mk('fav', 'star', !!r.favourite, 'Remove from favourites', 'Add to favourites'),
-      mk('remove', 'remove', null, '', 'Remove from list')
-    );
-    card.append(open, actions);
-    return card;
+  function setHead(title, sub, actions, showViewOpts = true) {
+    viewTitle.textContent = title;
+    viewSub.textContent = sub || '';
+    headActions.replaceChildren(...actions);
+    viewOpts.hidden = !showViewOpts;
   }
 
   function renderHome() {
-    const hasRecents = recents.length > 0;
-    const query = searchEl.value.trim();
     renderNav();
-
-    $('#firstRun').hidden = hasRecents;
-    $('#searchWrap').hidden = !hasRecents;
-    clearBtn.hidden = !hasRecents;
-
-    const n = savedSession.length;
-    restoreBtn.hidden = n === 0 || tabs.length > 0;
-    restoreBtn.textContent = n === 1 ? 'Reopen last session’s PDF' : 'Reopen last session’s ' + n + ' PDFs';
-
-    const view = viewById(currentView) || viewById('all');
-    let items;
-    if (query) {
-      const q = query.toLowerCase();
-      items = recents.filter((r) => r.name.toLowerCase().includes(q));
-      $('#viewTitle').textContent = 'Search results';
-    } else {
-      items = recents.filter(view.test);
-      $('#viewTitle').textContent = view.label;
+    clearBtn.hidden = !records.some((r) => r.lastOpened);
+    currentItems = new Map();
+    const query = searchEl.value.trim();
+    if (query) { renderSearch(query); return; }
+    if (currentView === 'tools') { renderToolsView(); return; }
+    if (currentView.startsWith('c:')) {
+      const col = collectionById(currentView.slice(2));
+      if (col) { renderCollectionView(col); return; }
+      currentView = 'all';
     }
-    items.sort(byPinThenRecent);
-    $('#viewCount').textContent = hasRecents ? (items.length === 1 ? '1 PDF' : items.length + ' PDFs') : '';
-
-    const grid = $('#grid');
-    grid.replaceChildren();
-    const openIds = new Set(tabs.map((t) => t.recentId).filter(Boolean));
-    for (const r of items) grid.appendChild(makeCard(r, openIds));
-
-    const emptyBox = $('#viewEmpty');
-    emptyBox.hidden = !hasRecents || items.length > 0;
-    if (!emptyBox.hidden) {
-      const [title, text] = query
-        ? ['No matches', 'No recent PDFs have “' + query + '” in their name.']
-        : (view.empty || ['Nothing here', 'No PDFs were opened in this period.']);
-      emptyBox.querySelector('h2').textContent = title;
-      emptyBox.querySelector('p').textContent = text;
-    }
+    renderLibraryView(viewById(currentView) || viewById('all'));
   }
 
-  $('#nav').addEventListener('click', (e) => {
+  // ---------- Sidebar ----------
+  function navHeading(text, extra) {
+    return el('div', { class: 'nav-heading' }, el('h2', { text }), extra || null);
+  }
+  function navButton(id, label, icon, count) {
+    const current = !searchEl.value.trim() && currentView === id;
+    return el('button', { type: 'button', class: 'nav-item', dataset: { view: id }, 'aria-current': current ? 'true' : null },
+      el('span', { class: 'nav-icon', html: icon }),
+      el('span', { class: 'nav-label', text: label }),
+      el('span', { class: 'nav-count', text: count ? String(count) : '' }));
+  }
+  function renderNav() {
+    const focused = navEl.contains(document.activeElement) && document.activeElement.dataset ? document.activeElement.dataset.view : null;
+    const parts = [navHeading('Library')];
+    for (const v of LIBRARY_VIEWS) parts.push(navButton(v.id, v.label, ICONS[v.icon], records.filter(v.test).length));
+
+    const dates = DATE_VIEWS.filter((v) => records.some(v.test) || currentView === v.id);
+    if (dates.length) {
+      parts.push(navHeading('By date'));
+      for (const v of dates) parts.push(navButton(v.id, v.label, ICONS.day, records.filter(v.test).length));
+    }
+
+    parts.push(navHeading('Collections', el('button', { type: 'button', class: 'nav-add', title: 'New collection', 'aria-label': 'New collection', html: ICONS.plus, onclick: () => createCollectionFlow() })));
+    if (!collections.length) parts.push(el('p', { class: 'nav-note', text: 'Group PDFs by project, or link a folder.' }));
+    for (const col of collections) {
+      const b = navButton('c:' + col.id, col.name, col.kind === 'folder' ? ICONS.folder : ICONS.stack, collectionCount(col));
+      b.title = col.kind === 'folder' ? col.name + ' (linked folder)' : col.name;
+      b.addEventListener('contextmenu', (e) => { e.preventDefault(); showCollectionMenu(col, { x: e.clientX, y: e.clientY }); });
+      if (col.kind === 'manual') {
+        b.addEventListener('dragover', (e) => {
+          if (!Array.from(e.dataTransfer.types).includes('application/x-sureshot-item')) return;
+          e.preventDefault();
+          e.dataTransfer.dropEffect = 'copy';
+          b.classList.add('drop-target');
+        });
+        b.addEventListener('dragleave', () => b.classList.remove('drop-target'));
+        b.addEventListener('drop', async (e) => {
+          b.classList.remove('drop-target');
+          const key = e.dataTransfer.getData('application/x-sureshot-item');
+          const item = key && currentItems.get(key);
+          if (!item) return;
+          e.preventDefault();
+          try {
+            const r = await ensureRecordForItem(item);
+            if (col.fileIds.includes(r.id)) { toast(r.name + ' is already in “' + col.name + '”.'); return; }
+            toggleMembership(col, r);
+          } catch (err) {
+            toast('Couldn’t add ' + item.name + '. ' + friendly(err));
+          }
+        });
+      }
+      parts.push(b);
+    }
+
+    parts.push(navHeading('Tools'));
+    parts.push(navButton('tools', 'Page tools', ICONS.tools, null));
+    navEl.replaceChildren(...parts);
+    if (focused) {
+      const again = navEl.querySelector('[data-view="' + CSS.escape(focused) + '"]');
+      if (again) again.focus();
+    }
+  }
+  navEl.addEventListener('click', (e) => {
     const item = e.target.closest('.nav-item');
     if (item) setView(item.dataset.view);
   });
 
-  $('#grid').addEventListener('click', (e) => {
-    const act = e.target.closest('.act');
-    if (act) {
-      const id = act.dataset.id;
-      if (act.classList.contains('pin')) toggleFlag(id, 'pinned');
-      else if (act.classList.contains('fav')) toggleFlag(id, 'favourite');
-      else if (act.classList.contains('remove')) removeRecent(id, true);
+  // ---------- Library and date views ----------
+  function renderLibraryView(view) {
+    currentCtx = { kind: 'library' };
+    const items = sortItems(records.filter(view.test).map(itemFromRecord));
+    setHead(view.label, records.length ? plural(items.length, 'PDF') : '', commonActions(), records.length > 0);
+    if (!records.length) {
+      viewBody.replaceChildren(firstRunBlock());
       return;
     }
-    const open = e.target.closest('.card-open');
-    if (open) openRecent(open.dataset.id);
+    if (!items.length) {
+      viewBody.replaceChildren(notice(view.empty[0], view.empty[1]));
+      return;
+    }
+    viewBody.replaceChildren(renderItems(items, currentCtx));
+  }
+
+  function firstRunBlock() {
+    const block = el('div', { class: 'first-run' });
+    block.innerHTML = '<svg class="reticle" viewBox="0 0 120 120" aria-hidden="true"><circle cx="60" cy="60" r="42" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="60" cy="60" r="22" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M60 4v26M60 90v26M4 60h26M90 60h26" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle class="dot" cx="60" cy="60" r="5"/></svg>';
+    block.append(
+      el('h2', { text: 'No PDFs yet' }),
+      el('p', { text: 'PDFs you open appear here, so you can get back to any of them with one click. Drop PDF files anywhere in this window, or link a project folder as a collection.' })
+    );
+    return block;
+  }
+  function notice(title, text, buttons) {
+    return el('div', { class: 'notice' }, el('h2', { text: title }), el('p', { text }), buttons && buttons.length ? el('div', { class: 'row' }, buttons) : null);
+  }
+
+  // ---------- Collection views ----------
+  function folderSubText(col) {
+    const cache = folderCache.get(col.id);
+    const folderName = col.dirHandle ? col.dirHandle.name : 'the folder';
+    if (!cache || cache.status === 'scanning') return 'Reading “' + folderName + '”…';
+    if (cache.status !== 'ok') return 'Linked to the folder “' + folderName + '”.';
+    const n = cache.items.length;
+    const indexed = cache.items.filter((f) => indexedSigs.has(f.sig)).length;
+    let text = plural(n, 'PDF') + ' in “' + folderName + '” and its subfolders' + (cache.truncated ? ' (showing the first ' + FOLDER_LIMIT + ')' : '') + '.';
+    if (n) {
+      const pending = cache.items.filter((f) => indexQueue.some((q) => q.sig === f.sig)).length;
+      if (pending) text += ' Building previews: ' + pending + ' to go.';
+      else text += ' ' + indexed + ' of ' + n + ' have previews and text search.';
+    }
+    return text;
+  }
+
+  function renderCollectionView(col) {
+    const more = iconButton('more', 'More actions for this collection', (e) => showCollectionMenu(col, e.currentTarget), { 'aria-haspopup': 'menu' });
+    if (col.kind === 'manual') {
+      currentCtx = { kind: 'collection', col };
+      const items = sortItems(col.fileIds.map(recordById).filter(Boolean).map(itemFromRecord));
+      setHead(col.name, plural(items.length, 'PDF') + ' in this collection.', [
+        button('primary', 'Open all', () => openAll(col), { disabled: items.length ? null : true }),
+        more
+      ], items.length > 0);
+      viewBody.replaceChildren(items.length
+        ? renderItems(items, currentCtx)
+        : notice('This collection is empty', 'Add PDFs with the More actions menu on any PDF, by dragging a PDF onto this collection in the sidebar, or by right-clicking a tab.'));
+      return;
+    }
+
+    currentCtx = { kind: 'folder', col };
+    let cache = folderCache.get(col.id);
+    if (!cache) {
+      cache = { status: 'scanning', items: [] };
+      folderCache.set(col.id, cache);
+      scanFolder(col, { request: false });
+    }
+    const actions = [];
+    if (cache.status === 'ok' && cache.items.length) {
+      actions.push(button('primary', 'Open all', () => openAll(col)));
+      if (cache.items.some((f) => !indexedSigs.has(f.sig) && !indexQueue.some((q) => q.sig === f.sig))) {
+        actions.push(button('secondary', 'Build previews and search', () => indexFolder(col), {
+          title: 'Reads each PDF in the folder once. Files stored only online in OneDrive will be downloaded.'
+        }));
+      }
+    }
+    if (cache.status === 'ok' || cache.status === 'error') actions.push(button('secondary', 'Rescan', () => scanFolder(col, { request: true })));
+    actions.push(more);
+    setHead(col.name, folderSubText(col), actions, cache.status === 'ok' && cache.items.length > 0);
+
+    if (cache.status === 'needs-permission') {
+      viewBody.replaceChildren(notice('Allow access to “' + col.dirHandle.name + '”',
+        'Edge asks again after the app restarts, unless you chose Allow on every visit. Sureshot PDF only reads the folder.',
+        [button('primary', 'Allow access', () => scanFolder(col, { request: true }))]));
+      return;
+    }
+    if (cache.status === 'error') {
+      viewBody.replaceChildren(notice('Couldn’t read “' + col.dirHandle.name + '”',
+        cache.error + ' The folder may have been moved, renamed or deleted.',
+        [button('secondary', 'Delete this collection', () => deleteCollection(col))]));
+      return;
+    }
+    const items = sortItems(cache.items.map(itemFromFolder));
+    if (!items.length) {
+      viewBody.replaceChildren(cache.status === 'scanning'
+        ? notice('Reading the folder…', 'This can take a moment for large folders.')
+        : notice('No PDFs in this folder', 'PDFs you save into “' + col.dirHandle.name + '” appear here when you rescan.'));
+      return;
+    }
+    viewBody.replaceChildren(renderItems(items, currentCtx));
+  }
+
+  // ---------- Cards ----------
+  function renderItems(items, ctx) {
+    const box = el('div', { class: 'items ' + (layout === 'list' ? 'list' : 'grid') });
+    for (const item of items) {
+      currentItems.set(item.key, item);
+      box.append(makeItem(item, ctx));
+    }
+    hydrateThumbs(box);
+    return box;
+  }
+
+  function makeItem(item, ctx) {
+    const r = item.record;
+    const openTab = findOpenTabForItem(item);
+    const name = baseName(item.name);
+
+    const art = el('span', { class: 'card-art' },
+      el('span', { class: 'doc-icon', html: ICONS.bigDoc }),
+      item.sig ? el('img', { class: 'thumb', alt: '', dataset: { sig: item.sig } }) : null,
+      openTab ? el('span', { class: 'card-badge' }, el('span', { class: 'mark on', 'aria-hidden': 'true' }), 'In a tab') : null);
+
+    let metaLeft;
+    if (ctx.kind === 'folder') metaLeft = item.path ? item.path.replace(/\/$/, '') : 'Modified ' + shortDate(item.modified);
+    else metaLeft = whenText(item.when);
+
+    const chips = [];
+    if (openTab) chips.push(el('span', { class: 'chip on list-only', text: 'In a tab' }));
+    if (r && r.bookmarks && r.bookmarks.length) chips.push(el('span', { class: 'chip', text: plural(r.bookmarks.length, 'bookmark') }));
+
+    const body = el('span', { class: 'card-body' },
+      el('span', { class: 'card-name', text: name }),
+      el('span', { class: 'card-meta' }, el('span', { text: metaLeft }), el('span', { text: sizeText(item.size) })),
+      r && r.note && r.note.trim() ? el('span', { class: 'card-note' }, el('span', { html: ICONS.note }), el('span', { text: r.note.trim() })) : null,
+      chips.length ? el('span', { class: 'chips' }, chips) : null);
+
+    const open = el('button', { type: 'button', class: 'card-open', dataset: { action: 'open', key: item.key }, title: 'Open ' + item.name }, art, body);
+
+    const pinned = !!(r && r.pinned);
+    const fav = !!(r && r.favourite);
+    const actions = el('div', { class: 'card-actions' },
+      el('button', { type: 'button', class: 'act pin', dataset: { action: 'pin', key: item.key }, 'aria-pressed': String(pinned), title: pinned ? 'Unpin' : 'Pin', 'aria-label': (pinned ? 'Unpin ' : 'Pin ') + item.name, html: ICONS.pin }),
+      el('button', { type: 'button', class: 'act fav', dataset: { action: 'fav', key: item.key }, 'aria-pressed': String(fav), title: fav ? 'Remove from favourites' : 'Add to favourites', 'aria-label': (fav ? 'Remove from favourites: ' : 'Add to favourites: ') + item.name, html: ICONS.star }),
+      el('button', { type: 'button', class: 'act more', dataset: { action: 'more', key: item.key }, 'aria-haspopup': 'menu', title: 'More actions', 'aria-label': 'More actions for ' + item.name, html: ICONS.more }),
+      ctx.kind === 'folder' || !r ? null : el('button', {
+        type: 'button', class: 'act remove', dataset: { action: 'remove', key: item.key },
+        title: ctx.kind === 'collection' ? 'Remove from this collection' : 'Remove from list',
+        'aria-label': (ctx.kind === 'collection' ? 'Remove from this collection: ' : 'Remove from list: ') + item.name, html: ICONS.x
+      }));
+
+    return el('article', { class: 'card' + (pinned ? ' is-pinned' : ''), draggable: 'true', dataset: { key: item.key } }, open, actions);
+  }
+
+  viewBody.addEventListener('click', (e) => {
+    const target = e.target.closest('[data-action]');
+    if (!target || !viewBody.contains(target)) return;
+    const item = currentItems.get(target.dataset.key);
+    if (!item) return;
+    const page = target.dataset.page ? Number(target.dataset.page) : null;
+    switch (target.dataset.action) {
+      case 'open': openItem(item, page); break;
+      case 'pin': toggleItemFlag(item, 'pinned'); break;
+      case 'fav': toggleItemFlag(item, 'favourite'); break;
+      case 'more': showItemMenu(item, target); break;
+      case 'remove':
+        if (currentCtx.kind === 'collection') removeFromCollection(currentCtx.col, item.record.id, true);
+        else removeRecord(item.record.id, true);
+        break;
+    }
   });
-  $('#grid').addEventListener('auxclick', (e) => {
-    const open = e.target.closest('.card-open');
-    if (open && e.button === 1) { e.preventDefault(); openRecent(open.dataset.id); }
+  viewBody.addEventListener('auxclick', (e) => {
+    const target = e.target.closest('[data-action="open"]');
+    if (target && e.button === 1) {
+      e.preventDefault();
+      const item = currentItems.get(target.dataset.key);
+      if (item) openItem(item);
+    }
+  });
+  viewBody.addEventListener('contextmenu', (e) => {
+    const card = e.target.closest('.card');
+    if (!card) return;
+    const item = currentItems.get(card.dataset.key);
+    if (!item) return;
+    e.preventDefault();
+    showItemMenu(item, { x: e.clientX, y: e.clientY });
+  });
+  viewBody.addEventListener('dragstart', (e) => {
+    const card = e.target.closest('.card');
+    if (!card) return;
+    e.dataTransfer.effectAllowed = 'copy';
+    e.dataTransfer.setData('application/x-sureshot-item', card.dataset.key);
   });
 
-  searchEl.addEventListener('input', renderHome);
+  async function toggleItemFlag(item, flag) {
+    let r;
+    try {
+      r = await ensureRecordForItem(item);
+    } catch (err) {
+      toast('Couldn’t update ' + item.name + '. ' + friendly(err));
+      return;
+    }
+    r[flag] = !r[flag];
+    trimRecords();
+    saveRecords();
+    renderHome();
+    const again = viewBody.querySelector('.act.' + (flag === 'pinned' ? 'pin' : 'fav') + '[data-key="' + CSS.escape(r.id) + '"]') ||
+      viewBody.querySelector('.act.' + (flag === 'pinned' ? 'pin' : 'fav') + '[data-key="' + CSS.escape(item.key) + '"]');
+    if (again) again.focus();
+  }
+
+  function withRecord(item, fn) {
+    ensureRecordForItem(item).then(fn).catch((err) => toast('Couldn’t do that for ' + item.name + '. ' + friendly(err)));
+  }
+
+  function showItemMenu(item, anchor) {
+    const r = item.record;
+    const entries = [
+      { label: 'Open', onClick: () => openItem(item) },
+      { label: 'Open beside current PDF', disabled: !tabs.length, hint: tabs.length ? null : 'Open a PDF first', onClick: () => openBeside(item) },
+      { label: 'Notes and bookmarks…', onClick: () => withRecord(item, openDetails) },
+      { sep: true },
+      { heading: 'Add to collection' }
+    ];
+    for (const c of manualCollections()) {
+      entries.push({ label: c.name, checked: !!r && c.fileIds.includes(r.id), onClick: () => withRecord(item, (rec) => toggleMembership(c, rec)) });
+    }
+    entries.push({ label: 'New collection…', onClick: () => withRecord(item, (rec) => createCollectionFlow({ fileIds: [rec.id], show: false })) });
+    entries.push({ sep: true });
+    entries.push({ label: 'Organize pages…', onClick: () => organizeTool({ item }) });
+    entries.push({ label: 'Share…', onClick: () => shareItem(item) });
+    if (r && currentCtx.kind !== 'folder') {
+      entries.push({ sep: true });
+      if (currentCtx.kind === 'collection') entries.push({ label: 'Remove from this collection', onClick: () => removeFromCollection(currentCtx.col, r.id, true) });
+      entries.push({ label: 'Remove from list', onClick: () => removeRecord(r.id, true) });
+    }
+    showMenu(anchor, entries);
+  }
+
+  function showCollectionMenu(col, anchor) {
+    const entries = [
+      { label: 'Open all', onClick: () => openAll(col) },
+      { label: 'Rename…', onClick: () => renameCollection(col) }
+    ];
+    if (col.kind === 'folder') entries.push({ label: 'Rescan folder', onClick: () => scanFolder(col, { request: true }) });
+    entries.push({ sep: true }, { label: 'Delete collection', onClick: () => deleteCollection(col) });
+    showMenu(anchor, entries);
+  }
+
+  function showTabMenu(tab, anchor) {
+    if (!tab) return;
+    const r = tab.recordId ? recordById(tab.recordId) : null;
+    const noRecord = 'Not available for PDFs opened without file access';
+    const split = activeId !== HOME && splitRightId !== null && (tab.id === splitRightId || tab.id === activeId);
+    const entries = [
+      { label: 'Notes and bookmarks…', disabled: !r, hint: r ? null : noRecord, onClick: () => openDetails(r) },
+      { sep: true },
+      { heading: 'Add to collection' }
+    ];
+    for (const c of manualCollections()) {
+      entries.push({ label: c.name, checked: !!r && c.fileIds.includes(r.id), disabled: !r, onClick: () => toggleMembership(c, r) });
+    }
+    entries.push({ label: 'New collection…', disabled: !r, onClick: () => createCollectionFlow({ fileIds: [r.id], show: false }) });
+    entries.push({ label: 'Save open tabs as collection…', onClick: saveTabsAsCollection });
+    entries.push({ sep: true });
+    entries.push(split
+      ? { label: 'Close split view', onClick: () => { splitRightId = null; layoutFrames(); } }
+      : { label: 'Show beside current PDF', disabled: tabs.length < 2, onClick: () => showBeside(tab.id) });
+    entries.push({ label: 'Organize pages…', onClick: () => organizeTool({ tabId: tab.id }) });
+    entries.push({ label: 'Other page tools…', onClick: () => { activate(HOME); setView('tools'); } });
+    entries.push({ label: 'Share…', onClick: () => shareFile(tab.file) });
+    entries.push({ sep: true });
+    entries.push({ label: 'Close tab', onClick: () => closeTab(tab.id) });
+    entries.push({ label: 'Close other tabs', disabled: tabs.length < 2, onClick: () => closeOtherTabs(tab.id) });
+    showMenu(anchor, entries);
+  }
+
+  // ---------- Search ----------
+  let searchToken = 0;
+  function allKnownItems() {
+    const out = records.map(itemFromRecord);
+    const seen = new Set(out.map((i) => i.sig).filter(Boolean));
+    for (const [, cache] of folderCache) {
+      if (cache.status !== 'ok') continue;
+      for (const f of cache.items) {
+        if (seen.has(f.sig)) continue;
+        seen.add(f.sig);
+        out.push(itemFromFolder(f));
+      }
+    }
+    return out;
+  }
+  function snippet(text, index, length) {
+    const start = Math.max(0, index - 70);
+    const end = Math.min(text.length, index + length + 90);
+    return el('span', {},
+      (start > 0 ? '…' : '') + text.slice(start, index),
+      el('mark', { text: text.slice(index, index + length) }),
+      text.slice(index + length, end) + (end < text.length ? '…' : ''));
+  }
+
+  async function renderSearch(query) {
+    const token = ++searchToken;
+    currentCtx = { kind: 'search' };
+    const q = query.toLowerCase();
+    const universe = allKnownItems();
+    const nameHits = sortItems(universe.filter((it) => it.name.toLowerCase().includes(q) || (it.record && it.record.note && it.record.note.toLowerCase().includes(q))));
+    setHead('Search results', 'Searching…', commonActions(), false);
+    const parts = [];
+    if (nameHits.length) {
+      parts.push(el('h2', { class: 'section-title', text: 'Names and notes' }));
+      parts.push(renderItems(nameHits, currentCtx));
+    }
+    viewBody.replaceChildren(...parts);
+
+    const cache = await loadTextCache();
+    if (token !== searchToken) return;
+    const contentHits = [];
+    for (const it of universe) {
+      if (!it.sig) continue;
+      const pages = cache.get(it.sig);
+      if (!pages || !pages.length) continue;
+      const hits = [];
+      let pageCount = 0;
+      for (let i = 0; i < pages.length; i++) {
+        const idx = pages[i].toLowerCase().indexOf(q);
+        if (idx < 0) continue;
+        pageCount++;
+        if (hits.length < 3) hits.push({ page: i + 1, text: pages[i], idx });
+      }
+      if (pageCount) contentHits.push({ it, hits, pageCount });
+      if (contentHits.length >= 100) break;
+    }
+    if (contentHits.length) {
+      viewBody.append(el('h2', { class: 'section-title', text: 'Inside PDFs' }));
+      const list = el('div', { class: 'hits' });
+      for (const { it, hits, pageCount } of contentHits) {
+        currentItems.set(it.key, it);
+        const block = el('div', { class: 'hit' },
+          el('button', { type: 'button', class: 'hit-file', dataset: { action: 'open', key: it.key }, text: baseName(it.name) }),
+          el('div', { class: 'hit-meta', text: 'Found on ' + plural(pageCount, 'page') + (pageCount > hits.length ? '. Showing the first ' + hits.length + '.' : '.') }));
+        for (const h of hits) {
+          block.append(el('button', { type: 'button', class: 'hit-page', dataset: { action: 'open', key: it.key, page: String(h.page) }, title: 'Open at page ' + h.page },
+            el('b', { text: 'Page ' + h.page }), snippet(h.text, h.idx, q.length)));
+        }
+        list.append(block);
+      }
+      viewBody.append(list);
+    }
+    const indexedCount = universe.filter((it) => it.sig && cache.has(it.sig)).length;
+    const total = nameHits.length + contentHits.length;
+    if (!total) {
+      viewBody.replaceChildren(notice('No matches for “' + query + '”', 'Text search covers PDFs you’ve opened since this version of Sureshot PDF, plus linked folders where you chose Build previews and search. Scanned PDFs without a text layer can’t be searched.'));
+    }
+    viewSub.textContent = plural(total, 'match', 'matches') + '. Text search covers ' + indexedCount + ' of ' + plural(universe.length, 'PDF') + '.';
+  }
+
+  let searchTimer = null;
+  searchEl.addEventListener('input', () => {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(renderHome, 160);
+  });
   searchEl.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && searchEl.value) { searchEl.value = ''; renderHome(); }
   });
 
+  // ---------- Sort and layout ----------
+  sortSel.value = sortBy;
+  sortSel.addEventListener('change', () => {
+    sortBy = sortSel.value;
+    try { localStorage.setItem('sureshot.sort', sortBy); } catch (err) { /* ignore */ }
+    renderHome();
+  });
+  function setLayout(next) {
+    layout = next;
+    try { localStorage.setItem('sureshot.layout', next); } catch (err) { /* ignore */ }
+    gridBtn.setAttribute('aria-pressed', String(next === 'grid'));
+    listBtn.setAttribute('aria-pressed', String(next === 'list'));
+    renderHome();
+  }
+  gridBtn.addEventListener('click', () => setLayout('grid'));
+  listBtn.addEventListener('click', () => setLayout('list'));
+  gridBtn.setAttribute('aria-pressed', String(layout !== 'list'));
+  listBtn.setAttribute('aria-pressed', String(layout === 'list'));
+
+  // ---------- Clear and restore ----------
   clearBtn.addEventListener('click', () => {
-    const keep = recents.filter((r) => r.pinned || r.favourite).length;
-    const message = keep
-      ? 'Clear the Recent list? Your ' + keep + ' pinned and favourite PDFs will stay. No files will be deleted.'
+    const kept = records.filter(isKept).length;
+    const message = kept
+      ? 'Clear the Recent list? Your ' + plural(kept, 'PDF') + ' that are pinned, favourited, in a collection, or have notes will stay in your library. No files will be deleted.'
       : 'Clear the Recent list? No files will be deleted.';
     if (!window.confirm(message)) return;
-    recents = recents.filter((r) => r.pinned || r.favourite);
-    store('recents', recents);
+    records = records.filter(isKept);
+    for (const r of records) r.lastOpened = null;
+    saveRecords();
     searchEl.value = '';
     renderHome();
   });
 
-  restoreBtn.addEventListener('click', async () => {
+  async function restoreSession() {
     const list = savedSession;
     savedSession = [];
     renderHome();
     let failed = 0;
     for (const handle of list) {
       try {
-        let permission = await handle.queryPermission({ mode: 'read' });
-        if (permission !== 'granted') permission = await handle.requestPermission({ mode: 'read' });
-        if (permission !== 'granted') { failed++; continue; }
+        if (!(await ensurePermission(handle, 'read', true))) { failed++; continue; }
         await openAndRemember(await handle.getFile(), handle);
       } catch (err) {
         failed++;
       }
     }
-    if (failed === 1) toast('1 PDF couldn’t be reopened. It may have been moved, renamed or deleted.');
-    else if (failed > 1) toast(failed + ' PDFs couldn’t be reopened. They may have been moved, renamed or deleted.');
+    if (failed) toast(plural(failed, 'PDF') + ' couldn’t be reopened. They may have been moved, renamed or deleted.');
+  }
+
+  // ============================================================
+  // Menus
+  // ============================================================
+  let menuReturnFocus = null;
+  function showMenu(anchor, entries) {
+    closeMenu(false);
+    menuEl.replaceChildren();
+    for (const it of entries) {
+      if (!it) continue;
+      if (it.sep) { menuEl.append(el('div', { class: 'menu-sep', role: 'separator' })); continue; }
+      if (it.heading) { menuEl.append(el('div', { class: 'menu-heading', 'aria-hidden': 'true', text: it.heading })); continue; }
+      const isCheck = it.checked !== undefined;
+      const item = el('button', {
+        type: 'button', class: 'menu-item', role: isCheck ? 'menuitemcheckbox' : 'menuitem',
+        'aria-checked': isCheck ? String(!!it.checked) : null, disabled: it.disabled ? true : null, title: it.hint || null, tabindex: '-1'
+      }, el('span', { class: 'menu-check', html: it.checked ? ICONS.check : '' }), el('span', { class: 'menu-label', text: it.label }));
+      item.addEventListener('click', () => {
+        closeMenu(true);
+        if (it.onClick) it.onClick();
+      });
+      menuEl.append(item);
+    }
+    menuEl.hidden = false;
+    menuReturnFocus = document.activeElement;
+    const w = menuEl.offsetWidth;
+    const h = menuEl.offsetHeight;
+    let x;
+    let y;
+    if (anchor instanceof Element) {
+      const r = anchor.getBoundingClientRect();
+      x = r.right - w;
+      y = r.bottom + 4;
+      if (y + h > innerHeight - 8) y = r.top - h - 4;
+    } else {
+      x = anchor.x;
+      y = anchor.y;
+      if (y + h > innerHeight - 8) y = anchor.y - h;
+    }
+    menuEl.style.left = clamp(x, 8, innerWidth - w - 8) + 'px';
+    menuEl.style.top = clamp(y, 8, innerHeight - h - 8) + 'px';
+    const first = menuEl.querySelector('.menu-item:not(:disabled)');
+    if (first) first.focus();
+  }
+  function closeMenu(restoreFocus) {
+    if (menuEl.hidden) return;
+    menuEl.hidden = true;
+    if (restoreFocus !== false && menuReturnFocus && document.contains(menuReturnFocus)) menuReturnFocus.focus({ preventScroll: true });
+    menuReturnFocus = null;
+  }
+  document.addEventListener('pointerdown', (e) => {
+    if (!menuEl.hidden && !menuEl.contains(e.target)) closeMenu(false);
+  }, true);
+  window.addEventListener('blur', () => closeMenu(false));
+  window.addEventListener('resize', () => closeMenu(false));
+  menuEl.addEventListener('keydown', (e) => {
+    const items = Array.from(menuEl.querySelectorAll('.menu-item:not(:disabled)'));
+    const i = items.indexOf(document.activeElement);
+    if (e.key === 'ArrowDown') { e.preventDefault(); (items[(i + 1) % items.length] || items[0]).focus(); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); (items[(i - 1 + items.length) % items.length] || items[0]).focus(); }
+    else if (e.key === 'Home') { e.preventDefault(); items[0].focus(); }
+    else if (e.key === 'End') { e.preventDefault(); items[items.length - 1].focus(); }
+    else if (e.key === 'Escape' || e.key === 'Tab') { e.preventDefault(); closeMenu(true); }
   });
 
-  // ---------- Misc ----------
+  // ============================================================
+  // Dialogs
+  // ============================================================
+  let dialogSeq = 0;
+  let dialogState = null;
+  function openDialog({ title, body, footer, size }) {
+    if (dlg.open) { finishDialog(); dlg.close(); }
+    closeMenu(false);
+    const state = { seq: ++dialogSeq, cleanup: null };
+    dialogState = state;
+    dlg.className = 'dlg' + (size ? ' ' + size : '');
+    dlg.replaceChildren(
+      el('div', { class: 'dlg-head' },
+        el('h2', { id: 'dlgTitle', text: title }),
+        el('button', { type: 'button', class: 'icon-btn', 'aria-label': 'Close', title: 'Close', html: ICONS.x, onclick: () => dlg.close() })),
+      el('div', { class: 'dlg-body' }, body),
+      footer ? el('div', { class: 'dlg-foot' }, footer) : null);
+    dlg.showModal();
+    return state;
+  }
+  function finishDialog() {
+    const s = dialogState;
+    dialogState = null;
+    if (s && s.cleanup) s.cleanup();
+  }
+  dlg.addEventListener('close', () => {
+    if (dlg.open) return;
+    finishDialog();
+  });
 
-  const toastText = $('#toastText');
-  const toastBtn = $('#toastBtn');
+  function promptDialog({ title, label, value = '', okLabel = 'Save' }) {
+    return new Promise((resolve) => {
+      let result = null;
+      const input = el('input', { type: 'text', class: 'field', id: 'promptInput', value, autocomplete: 'off' });
+      const err = el('p', { class: 'err', role: 'alert' });
+      const form = el('form', { method: 'dialog' },
+        el('h2', { text: title }),
+        el('div', { class: 'form-row' }, el('label', { class: 'field-label', for: 'promptInput', text: label }), input, err),
+        el('div', { class: 'dlg-foot' },
+          button('secondary', 'Cancel', () => promptDlg.close()),
+          el('button', { type: 'submit', class: 'primary', text: okLabel })));
+      form.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const v = input.value.trim();
+        if (!v) { err.textContent = 'Enter a name.'; input.focus(); return; }
+        result = v;
+        promptDlg.close();
+      });
+      promptDlg.replaceChildren(form);
+      promptDlg.onclose = () => { promptDlg.onclose = null; resolve(result); };
+      promptDlg.showModal();
+      input.select();
+    });
+  }
+
+  function newCollectionDialog({ fileIds = [] } = {}) {
+    return new Promise((resolve) => {
+      let result = null;
+      let dirHandle = null;
+      const canLink = 'showDirectoryPicker' in window;
+      const nameInput = el('input', { type: 'text', class: 'field', id: 'ncName', autocomplete: 'off', placeholder: 'For example, Riverside project' });
+      const manual = el('input', { type: 'radio', name: 'ncKind', id: 'ncManual', value: 'manual', checked: true });
+      const folder = el('input', { type: 'radio', name: 'ncKind', id: 'ncFolder', value: 'folder', disabled: canLink ? null : true });
+      const folderName = el('span', { class: 'muted', text: 'No folder chosen' });
+      const folderRow = el('div', { class: 'inline', hidden: true },
+        button('secondary sm', 'Choose folder…', async () => {
+          try {
+            dirHandle = await window.showDirectoryPicker({ mode: 'read' });
+            folderName.textContent = dirHandle.name;
+            if (!nameInput.value.trim()) nameInput.value = dirHandle.name;
+            err.textContent = '';
+          } catch (e) { /* cancelled */ }
+        }), folderName);
+      const err = el('p', { class: 'err', role: 'alert' });
+      const sync = () => { folderRow.hidden = !folder.checked; };
+      manual.addEventListener('change', sync);
+      folder.addEventListener('change', sync);
+
+      const form = el('form', { method: 'dialog' },
+        el('h2', { text: 'New collection' }),
+        el('div', { class: 'form-row' }, el('label', { class: 'field-label', for: 'ncName', text: 'Name' }), nameInput),
+        el('div', { class: 'form-row', role: 'radiogroup', 'aria-label': 'Kind of collection' },
+          el('label', { class: 'choice', for: 'ncManual' }, manual, el('span', {}, el('b', { text: 'Pick PDFs' }), el('br'), el('span', { class: 'help', text: 'Add PDFs yourself from anywhere on your PC.' }))),
+          el('label', { class: 'choice', for: 'ncFolder' }, folder, el('span', {}, el('b', { text: 'Link a folder' }), el('br'), el('span', { class: 'help', text: canLink ? 'Shows every PDF in a folder and its subfolders, including new ones. Edge asks for access once per session at most.' : 'Not available in this browser.' }))),
+          folderRow),
+        err,
+        el('div', { class: 'dlg-foot' },
+          button('secondary', 'Cancel', () => promptDlg.close()),
+          el('button', { type: 'submit', class: 'primary', text: 'Create' })));
+
+      form.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const name = nameInput.value.trim();
+        if (!name) { err.textContent = 'Enter a name for the collection.'; nameInput.focus(); return; }
+        if (folder.checked && !dirHandle) { err.textContent = 'Choose the folder to link.'; return; }
+        result = folder.checked
+          ? { id: uid('c'), name, kind: 'folder', fileIds: [], dirHandle, createdAt: Date.now() }
+          : { id: uid('c'), name, kind: 'manual', fileIds: fileIds.slice(), createdAt: Date.now() };
+        promptDlg.close();
+      });
+      promptDlg.replaceChildren(form);
+      promptDlg.onclose = () => { promptDlg.onclose = null; resolve(result); };
+      promptDlg.showModal();
+      nameInput.focus();
+    });
+  }
+
+  // ---------- Notes, bookmarks and collections for one file ----------
+  function openDetails(r) {
+    if (!r) return;
+    const note = el('textarea', { class: 'field', id: 'detailsNote', placeholder: 'For example: waiting on the revised version from council' });
+    note.value = r.note || '';
+    let noteTimer = null;
+    note.addEventListener('input', () => {
+      clearTimeout(noteTimer);
+      noteTimer = setTimeout(() => { r.note = note.value; saveRecords(); }, 300);
+    });
+
+    const bmList = el('ul', { class: 'bm-list' });
+    const drawBookmarks = () => {
+      const marks = (r.bookmarks || []).slice().sort((a, b) => a.page - b.page);
+      bmList.replaceChildren(...marks.map((b) => el('li', { class: 'bm' },
+        el('button', { type: 'button', class: 'bm-open', title: 'Open at page ' + b.page, onclick: () => { dlg.close(); openRecord(r, b.page); } },
+          el('b', { text: 'Page ' + b.page }), b.label || ''),
+        el('button', { type: 'button', class: 'icon-btn', title: 'Delete bookmark', 'aria-label': 'Delete bookmark for page ' + b.page, html: ICONS.x,
+          onclick: () => { r.bookmarks = r.bookmarks.filter((x) => x !== b); saveRecords(); drawBookmarks(); } }))));
+      if (!marks.length) bmList.replaceChildren(el('li', { class: 'empty-line', text: 'No bookmarks yet.' }));
+    };
+    drawBookmarks();
+    const pageInput = el('input', { type: 'number', class: 'field', id: 'bmPage', min: '1', step: '1', style: 'width: 96px' });
+    const labelInput = el('input', { type: 'text', class: 'field', id: 'bmLabel', placeholder: 'Label, for example Clause 9', style: 'flex: 1; min-width: 160px' });
+    const bmErr = el('p', { class: 'err', role: 'alert' });
+    const addBookmark = () => {
+      const page = Number(pageInput.value);
+      if (!Number.isInteger(page) || page < 1) { bmErr.textContent = 'Enter a page number.'; pageInput.focus(); return; }
+      bmErr.textContent = '';
+      r.bookmarks = (r.bookmarks || []).concat({ id: uid('b'), page, label: labelInput.value.trim() });
+      saveRecords();
+      pageInput.value = '';
+      labelInput.value = '';
+      drawBookmarks();
+      pageInput.focus();
+    };
+    labelInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); addBookmark(); } });
+    pageInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); addBookmark(); } });
+
+    const colList = el('div', { class: 'check-list' });
+    const drawCollections = () => {
+      const manual = manualCollections();
+      colList.replaceChildren(...manual.map((c) => {
+        const box = el('input', { type: 'checkbox', id: 'dc-' + c.id, checked: c.fileIds.includes(r.id) ? true : null });
+        box.addEventListener('change', () => {
+          const i = c.fileIds.indexOf(r.id);
+          if (box.checked && i < 0) c.fileIds.push(r.id);
+          if (!box.checked && i >= 0) c.fileIds.splice(i, 1);
+          saveCollections();
+        });
+        return el('label', { class: 'choice', for: 'dc-' + c.id }, box, c.name);
+      }));
+      if (!manual.length) colList.replaceChildren(el('p', { class: 'empty-line', text: 'No collections yet.' }));
+      colList.append(el('div', {}, button('secondary sm', 'New collection…', async () => {
+        const col = await createCollectionFlow({ fileIds: [r.id], show: false });
+        if (col) drawCollections();
+      })));
+    };
+    drawCollections();
+
+    const meta = [sizeText(r.size), r.lastOpened ? 'last opened ' + whenText(r.lastOpened).toLowerCase() : 'not opened yet'].filter(Boolean).join(', ');
+    const body = el('div', { class: 'details' },
+      el('p', { class: 'help', text: r.name + ', ' + meta + '.' }),
+      el('h3', {}, el('label', { for: 'detailsNote', text: 'Notes' })),
+      note,
+      el('h3', { text: 'Bookmarks' }),
+      el('p', { class: 'help', text: 'Jump straight to a page. Edge’s viewer can’t tell Sureshot PDF which page you’re on, so enter the page number.', style: 'margin-bottom: 8px' }),
+      bmList,
+      el('div', { class: 'inline' },
+        el('label', { class: 'sr-only', for: 'bmPage', text: 'Page number' }), pageInput,
+        el('label', { class: 'sr-only', for: 'bmLabel', text: 'Bookmark label' }), labelInput,
+        button('secondary', 'Add bookmark', addBookmark)),
+      bmErr,
+      el('h3', { text: 'Collections' }),
+      colList);
+
+    const state = openDialog({ title: baseName(r.name), body, footer: [button('primary', 'Done', () => dlg.close())] });
+    state.cleanup = () => {
+      clearTimeout(noteTimer);
+      r.note = note.value;
+      trimRecords();
+      saveRecords();
+      renderHomeSoon();
+    };
+  }
+
+  // ---------- Keyboard shortcuts ----------
+  function showShortcuts() {
+    const rows = [
+      ['Ctrl+O', 'Open PDFs'],
+      ['Ctrl+Page Down, Ctrl+Page Up', 'Next or previous tab'],
+      ['Ctrl+1 to Ctrl+8', 'Go to that tab'],
+      ['Ctrl+9', 'Go to the last tab'],
+      ['Alt+Home', 'Go to Home'],
+      ['Ctrl+F on Home', 'Search'],
+      ['Arrow keys on the tab strip', 'Move between tabs'],
+      ['Delete on a tab', 'Close it'],
+      ['Shift+F10 on a tab', 'Tab menu'],
+      ['Middle-click a tab', 'Close it']
+    ];
+    const table = el('table', { class: 'keys' }, el('tbody', {}, rows.map(([k, d]) => el('tr', {}, el('td', {}, el('kbd', { text: k })), el('td', { text: d })))));
+    openDialog({
+      title: 'Keyboard shortcuts',
+      body: el('div', {}, table, el('p', { class: 'help', style: 'margin-top: 12px', text: 'Shortcuts work when Sureshot PDF has focus rather than the PDF itself. Click the tab strip first if a shortcut doesn’t respond. Ctrl+W closes the whole app window, not a tab.' })),
+      footer: [button('primary', 'Done', () => dlg.close())]
+    });
+  }
+  $('#keysBtn').addEventListener('click', showShortcuts);
+
+  // ---------- Share ----------
+  async function shareFile(file) {
+    if (!file) return;
+    const data = { files: [file], title: file.name };
+    if (!navigator.canShare || !navigator.canShare(data)) {
+      toast('Sharing files isn’t available in this version of Edge.');
+      return;
+    }
+    try {
+      await navigator.share(data);
+    } catch (err) {
+      if (err.name === 'AbortError') return;
+      if (err.name === 'NotAllowedError') { toast('Choose Share again to send ' + file.name + '.'); return; }
+      toast('Couldn’t share ' + file.name + '. ' + friendly(err));
+    }
+  }
+  async function shareItem(item) {
+    const tab = findOpenTabForItem(item);
+    if (tab) { shareFile(tab.file); return; }
+    const cached = item.record && fileCache.get(item.record.id);
+    if (cached) { shareFile(cached); return; }
+    try {
+      shareFile(await itemFile(item));
+    } catch (err) {
+      toast('Couldn’t share ' + item.name + '. ' + friendly(err));
+    }
+  }
+
+  // ---------- Toast ----------
   let toastTimer = null;
   let toastAction = null;
   function toast(message, actionLabel, action) {
@@ -1155,7 +2733,7 @@
     toastBtn.textContent = actionLabel || '';
     toastEl.hidden = false;
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => { toastEl.hidden = true; toastAction = null; }, action ? 8000 : 6000);
+    toastTimer = setTimeout(() => { toastEl.hidden = true; toastAction = null; }, action ? 9000 : 6000);
   }
   toastBtn.addEventListener('click', () => {
     const action = toastAction;
@@ -1164,9 +2742,902 @@
     if (action) action();
   });
 
+  // ============================================================
+  // Page tools (pdf-lib). Every tool saves a new file.
+  // ============================================================
+  const TOOLS = [
+    { id: 'organize', icon: 'organize', title: 'Organize pages', text: 'Reorder, rotate, delete or extract pages.', run: () => organizeTool({}) },
+    { id: 'merge', icon: 'merge', title: 'Merge PDFs', text: 'Combine several PDFs into one, in the order you choose.', run: () => mergeTool() },
+    { id: 'split', icon: 'splitTool', title: 'Split a PDF', text: 'Break a PDF into separate files by page ranges.', run: () => splitTool({}) },
+    { id: 'images', icon: 'image', title: 'Images to PDF', text: 'Turn photos or scans into a single PDF.', run: () => imagesTool() },
+    { id: 'numbers', icon: 'numbers', title: 'Add page numbers', text: 'Number every page, with or without the cover.', run: () => numbersTool({}) },
+    { id: 'watermark', icon: 'watermark', title: 'Add a watermark', text: 'Stamp text such as DRAFT across every page.', run: () => watermarkTool({}) },
+    { id: 'stamp', icon: 'stamp', title: 'Stamp an image', text: 'Place a signature image or logo on chosen pages.', run: () => stampTool({}) }
+  ];
+
+  function renderToolsView() {
+    currentCtx = { kind: 'tools' };
+    setHead('Page tools', 'Each tool saves a new PDF and leaves the original untouched. Tools work on the file as saved on your PC, so save any annotations first.', commonActions(), false);
+    viewBody.replaceChildren(el('div', { class: 'tool-grid' }, TOOLS.map((t) =>
+      el('button', { type: 'button', class: 'tool', onclick: t.run },
+        el('span', { class: 'tool-icon', html: ICONS[t.icon] }), el('b', { text: t.title }), el('span', { text: t.text })))));
+  }
+
+  // ---------- Shared tool helpers ----------
+  function formRow(labelText, control, help) {
+    if (!control.id) control.id = uid('f');
+    return el('div', { class: 'form-row' }, el('label', { class: 'field-label', for: control.id, text: labelText }), control, help ? el('p', { class: 'help', text: help }) : null);
+  }
+  function selectField(options, value) {
+    const s = el('select', { class: 'field' });
+    for (const [v, t] of options) s.append(el('option', { value: v, text: t }));
+    s.value = value;
+    return s;
+  }
+  function numberField(value, min, max) {
+    return el('input', { type: 'number', class: 'field', value: String(value), min: String(min), max: max ? String(max) : null, step: '1' });
+  }
+
+  // A PDF picker for tools: open tabs, recent files, or a file from the PC.
+  // The file is read as soon as it's chosen, so any permission prompt appears while you're interacting.
+  function sourceField({ preset, label = 'PDF', onLoad } = {}) {
+    const select = el('select', { class: 'field' });
+    const cache = new Map();
+    const browsed = new Map();
+    const presetItem = preset && preset.item;
+    const presetTab = preset && preset.tabId ? findTab(preset.tabId) : presetItem ? findOpenTabForItem(presetItem) : null;
+
+    if (presetItem && !presetTab) select.append(el('option', { value: 'p:', text: presetItem.name }));
+    if (tabs.length) {
+      const g = el('optgroup', { label: 'Open tabs' });
+      for (const t of tabs) g.append(el('option', { value: 't:' + t.id, text: t.name }));
+      select.append(g);
+    }
+    const recent = records.filter((r) => r.lastOpened && !tabs.some((t) => t.recordId === r.id)).sort((a, b) => b.lastOpened - a.lastOpened).slice(0, 25);
+    if (recent.length) {
+      const g = el('optgroup', { label: 'Recent' });
+      for (const r of recent) g.append(el('option', { value: 'r:' + r.id, text: r.name }));
+      select.append(g);
+    }
+    const browseOption = el('option', { value: 'browse', text: 'Browse your PC…' });
+    select.append(browseOption);
+
+    let initial = '';
+    if (presetTab) initial = 't:' + presetTab.id;
+    else if (presetItem) initial = 'p:';
+    else if (activeId !== HOME && findTab(activeId)) initial = 't:' + activeId;
+    else if (tabs.length) initial = 't:' + tabs[0].id;
+    if (!initial) {
+      select.prepend(el('option', { value: '', text: 'Choose a PDF…' }));
+    }
+    select.value = initial;
+    let previous = select.value;
+
+    function resolveValue(v) {
+      if (cache.has(v)) return cache.get(v);
+      let p;
+      if (v.startsWith('t:')) {
+        const t = findTab(Number(v.slice(2)));
+        p = t ? Promise.resolve(t.file) : Promise.reject(new Error('That tab has been closed. Choose another PDF.'));
+      } else if (v.startsWith('r:')) {
+        const r = recordById(v.slice(2));
+        p = r ? getRecordFile(r) : Promise.reject(new Error('That PDF is no longer in your library.'));
+      } else if (v === 'p:') {
+        p = itemFile(presetItem);
+      } else if (v.startsWith('b:')) {
+        p = Promise.resolve(browsed.get(v));
+      } else {
+        p = Promise.reject(new Error('Choose a PDF first.'));
+      }
+      cache.set(v, p);
+      p.catch(() => cache.delete(v));
+      return p;
+    }
+    async function changed() {
+      if (select.value === 'browse') {
+        const picked = await pickPdfs(false);
+        if (picked.length) {
+          const v = 'b:' + uid('');
+          browsed.set(v, picked[0].file);
+          select.insertBefore(el('option', { value: v, text: picked[0].file.name }), browseOption);
+          select.value = v;
+        } else {
+          select.value = previous;
+          return;
+        }
+      }
+      previous = select.value;
+      const placeholder = select.querySelector('option[value=""]');
+      if (placeholder && select.value) placeholder.remove();
+      if (onLoad && select.value) onLoad(resolveValue(select.value));
+    }
+    select.addEventListener('change', changed);
+    if (onLoad && select.value) setTimeout(() => onLoad(resolveValue(select.value)), 0);
+    else if (select.value) resolveValue(select.value).catch(() => {});
+    return {
+      node: formRow(label, select),
+      select,
+      get: () => resolveValue(select.value),
+      name: () => (select.selectedOptions[0] ? select.selectedOptions[0].textContent : 'document.pdf')
+    };
+  }
+
+  async function loadForEditing(file) {
+    const { PDFDocument } = await getPdfLib();
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    try {
+      return await PDFDocument.load(bytes, { updateMetadata: false });
+    } catch (err) {
+      if (/encrypt/i.test(err.message || '')) throw new Error(file.name + ' is password-protected, so its pages can’t be changed.');
+      throw new Error('Couldn’t read ' + file.name + '. It may be damaged.');
+    }
+  }
+
+  function downloadBytes(bytes, name) {
+    const url = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }));
+    const a = el('a', { href: url, download: name });
+    document.body.append(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 15000);
+  }
+
+  // The save dialog must open while the click is still "fresh", so ask for the location first, then build the PDF.
+  async function saveWith(suggestedName, produce, progress) {
+    let handle = null;
+    if ('showSaveFilePicker' in window) {
+      try {
+        handle = await window.showSaveFilePicker({ suggestedName, types: [{ description: 'PDF file', accept: { 'application/pdf': ['.pdf'] } }] });
+      } catch (err) {
+        if (err.name === 'AbortError') return null;
+        throw err;
+      }
+    }
+    let bytes;
+    try {
+      bytes = await produce(progress);
+    } catch (err) {
+      if (handle && 'remove' in handle) handle.remove().catch(() => {});
+      throw err;
+    }
+    if (handle) {
+      const w = await handle.createWritable();
+      await w.write(new Blob([bytes], { type: 'application/pdf' }));
+      await w.close();
+      return { handle, name: handle.name };
+    }
+    downloadBytes(bytes, suggestedName);
+    return { handle: null, name: suggestedName };
+  }
+
+  function afterSave(result) {
+    if (!result) return;
+    if (result.handle) toast('Saved ' + result.name + '.', 'Open it', () => openHandle(result.handle));
+    else toast('Downloaded ' + result.name + '.');
+  }
+
+  async function busy(btn, status, fn) {
+    const label = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = 'Working…';
+    status.textContent = '';
+    status.classList.remove('err');
+    try {
+      return await fn((msg) => { status.textContent = msg; });
+    } catch (err) {
+      status.textContent = friendly(err);
+      status.classList.add('err');
+      return undefined;
+    } finally {
+      btn.disabled = false;
+      btn.textContent = label;
+    }
+  }
+
+  function parseRanges(text, max) {
+    const parts = String(text).split(/[,;]+/).map((s) => s.trim()).filter(Boolean);
+    if (!parts.length) return { error: 'Enter page ranges, for example 1-3, 4-8.' };
+    const groups = [];
+    for (const part of parts) {
+      const m = part.match(/^(\d+)\s*(?:[-–]\s*(\d+|end))?$/i);
+      if (!m) return { error: '“' + part + '” isn’t a page range. Use numbers like 3 or 4-8.' };
+      const a = Number(m[1]);
+      const b = m[2] ? (m[2].toLowerCase() === 'end' ? max : Number(m[2])) : a;
+      if (a < 1 || b < 1 || a > max || b > max) return { error: '“' + part + '” is outside this PDF, which has ' + plural(max, 'page') + '.' };
+      if (b < a) return { error: 'In “' + part + '”, the first page must come before the last.' };
+      groups.push(range(a - 1, b - 1));
+    }
+    return { groups };
+  }
+
+  // Re-encodes an image so phone photos come out the right way up (EXIF orientation is applied).
+  async function normalizeImage(file) {
+    let bitmap;
+    try {
+      bitmap = await createImageBitmap(file);
+    } catch (err) {
+      throw new Error('Couldn’t read ' + file.name + '. Use JPG, PNG, WebP, GIF or BMP images.');
+    }
+    const scale = Math.min(1, 6000 / Math.max(bitmap.width, bitmap.height));
+    const w = Math.round(bitmap.width * scale);
+    const h = Math.round(bitmap.height * scale);
+    const canvas = document.createElement('canvas');
+    canvas.width = w;
+    canvas.height = h;
+    const keepPng = file.type === 'image/png' || /\.png$/i.test(file.name) || file.type === 'image/gif';
+    const ctx = canvas.getContext('2d');
+    if (!keepPng) { ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, w, h); }
+    ctx.drawImage(bitmap, 0, 0, w, h);
+    bitmap.close();
+    const blob = await new Promise((resolve) => canvas.toBlob(resolve, keepPng ? 'image/png' : 'image/jpeg', 0.92));
+    return { bytes: new Uint8Array(await blob.arrayBuffer()), png: keepPng, width: w, height: h };
+  }
+
+  function boxOf(page) {
+    const b = page.getCropBox();
+    return { x: b.x, y: b.y, w: b.width, h: b.height };
+  }
+
+  // ---------- Organize pages ----------
+  function organizeTool(preset) {
+    let bytes = null;
+    let fileName = '';
+    let doc = null;
+    let pages = [];
+    let original = [];
+    let observer = null;
+    let token = 0;
+    const tiles = new Map();
+
+    const status = el('span', { class: 'status', role: 'status' });
+    const info = el('p', { class: 'help', role: 'status' });
+    const grid = el('div', { class: 'pages', role: 'group', 'aria-label': 'Pages. Click a page to select it; drag to reorder.' });
+    const src = sourceField({ preset, onLoad: load });
+
+    const sm = (text, fn, extra) => button('secondary sm', text, fn, extra);
+    const rotLeft = el('button', { type: 'button', class: 'icon-btn bordered', title: 'Rotate left (selected pages, or all if none selected)', 'aria-label': 'Rotate left', html: ICONS.rotL, onclick: () => rotate(-90) });
+    const rotRight = el('button', { type: 'button', class: 'icon-btn bordered', title: 'Rotate right (selected pages, or all if none selected)', 'aria-label': 'Rotate right', html: ICONS.rotR, onclick: () => rotate(90) });
+    const earlier = sm('Move earlier', () => move(-1));
+    const later = sm('Move later', () => move(1));
+    const del = el('button', { type: 'button', class: 'icon-btn bordered', title: 'Delete selected pages', 'aria-label': 'Delete selected pages', html: ICONS.trash, onclick: removeSelected });
+    const bar = el('div', { class: 'org-bar' },
+      sm('Select all', () => { pages.forEach((p) => { p.sel = true; }); draw(); }),
+      sm('Clear selection', () => { pages.forEach((p) => { p.sel = false; }); draw(); }),
+      el('span', { class: 'gap' }), rotLeft, rotRight, earlier, later, del,
+      el('span', { class: 'gap' }), sm('Undo all changes', () => { pages = original.map((p) => Object.assign({}, p)); draw(); }));
+    const extractBtn = button('secondary', 'Extract selected…', () => saveOut(true));
+    const saveBtn = button('primary', 'Save as new PDF…', () => saveOut(false));
+
+    const state = openDialog({
+      title: 'Organize pages',
+      size: 'wide',
+      body: el('div', {}, el('div', { class: 'org-top' }, src.node, info), bar, grid),
+      footer: [status, extractBtn, saveBtn]
+    });
+    state.cleanup = () => {
+      token++;
+      if (observer) observer.disconnect();
+      if (doc) doc.destroy();
+    };
+    draw();
+
+    async function load(filePromise) {
+      const mine = ++token;
+      grid.replaceChildren();
+      tiles.clear();
+      pages = [];
+      original = [];
+      draw();
+      info.textContent = 'Loading pages…';
+      try {
+        const file = await filePromise;
+        const data = new Uint8Array(await file.arrayBuffer());
+        const next = await openPdfjsDoc(data);
+        if (mine !== token) { next.destroy(); return; }
+        if (doc) doc.destroy();
+        doc = next;
+        bytes = data;
+        fileName = file.name;
+        original = Array.from({ length: doc.numPages }, (_, i) => ({ n: i, rot: 0, sel: false }));
+        pages = original.map((p) => Object.assign({}, p));
+        if (observer) observer.disconnect();
+        observer = new IntersectionObserver((entries) => {
+          for (const entry of entries) {
+            if (!entry.isIntersecting) continue;
+            observer.unobserve(entry.target);
+            renderTile(Number(entry.target.dataset.n), mine);
+          }
+        }, { root: dlg.querySelector('.dlg-body'), rootMargin: '300px' });
+        draw();
+      } catch (err) {
+        if (mine === token) info.textContent = friendly(err);
+      }
+    }
+
+    function tileFor(n) {
+      if (tiles.has(n)) return tiles.get(n);
+      const holder = el('span', {});
+      const tile = el('button', { type: 'button', class: 'page-tile', 'aria-pressed': 'false', draggable: 'true', dataset: { n: String(n) } },
+        el('span', { class: 'page-canvas' }, holder),
+        el('span', { class: 'page-label', text: 'Page ' + (n + 1) }));
+      tile.addEventListener('click', (e) => {
+        const p = pages.find((x) => x.n === n);
+        if (!p) return;
+        if (e.shiftKey && lastClicked !== null) {
+          const a = pages.findIndex((x) => x.n === lastClicked);
+          const b = pages.indexOf(p);
+          for (const q of pages.slice(Math.min(a, b), Math.max(a, b) + 1)) q.sel = true;
+        } else {
+          p.sel = !p.sel;
+        }
+        lastClicked = n;
+        draw();
+      });
+      tile.addEventListener('dragstart', (e) => {
+        draggingPage = n;
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('application/x-sureshot-page', String(n));
+        tile.classList.add('dragging');
+      });
+      tile.addEventListener('dragend', () => {
+        tile.classList.remove('dragging');
+        draggingPage = null;
+        const order = Array.from(grid.children).map((t) => Number(t.dataset.n));
+        pages.sort((a, b) => order.indexOf(a.n) - order.indexOf(b.n));
+        draw();
+      });
+      tiles.set(n, tile);
+      if (observer) observer.observe(tile);
+      return tile;
+    }
+    let lastClicked = null;
+    let draggingPage = null;
+    grid.addEventListener('dragover', (e) => {
+      if (draggingPage === null) return;
+      e.preventDefault();
+      const target = e.target.closest('.page-tile');
+      const dragged = tiles.get(draggingPage);
+      if (!target || target === dragged) return;
+      const r = target.getBoundingClientRect();
+      const after = e.clientX > r.left + r.width / 2;
+      grid.insertBefore(dragged, after ? target.nextSibling : target);
+    });
+    grid.addEventListener('drop', (e) => { if (draggingPage !== null) e.preventDefault(); });
+
+    async function renderTile(n, mine) {
+      if (!doc || mine !== token) return;
+      try {
+        const page = await doc.getPage(n + 1);
+        const base = page.getViewport({ scale: 1 });
+        const viewport = page.getViewport({ scale: Math.min(216 / base.width, 280 / base.height) });
+        const canvas = el('canvas', {});
+        canvas.width = Math.round(viewport.width);
+        canvas.height = Math.round(viewport.height);
+        canvas.style.width = Math.round(viewport.width / 2) + 'px';
+        canvas.style.height = Math.round(viewport.height / 2) + 'px';
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        await page.render({ canvasContext: ctx, viewport }).promise;
+        if (mine !== token) return;
+        const tile = tiles.get(n);
+        if (tile) tile.querySelector('.page-canvas > span').replaceChildren(canvas);
+      } catch (err) { /* leave the tile blank */ }
+    }
+
+    function draw() {
+      const ordered = pages.map((p) => tileFor(p.n));
+      grid.replaceChildren(...ordered);
+      for (const p of pages) {
+        const tile = tiles.get(p.n);
+        tile.setAttribute('aria-pressed', String(p.sel));
+        tile.setAttribute('aria-label', 'Page ' + (p.n + 1) + (p.rot ? ', rotated ' + ((p.rot % 360) + 360) % 360 + ' degrees' : '') + (p.sel ? ', selected' : ''));
+        const holder = tile.querySelector('.page-canvas > span');
+        const turn = ((p.rot % 360) + 360) % 360;
+        holder.style.transform = 'rotate(' + p.rot + 'deg)' + (turn === 90 || turn === 270 ? ' scale(0.78)' : '');
+      }
+      const selected = pages.filter((p) => p.sel).length;
+      const loaded = pages.length > 0;
+      if (loaded) info.textContent = plural(pages.length, 'page') + (selected ? ', ' + selected + ' selected' : '') + '. Click pages to select them, then drag or use the buttons.';
+      for (const b of [earlier, later, del]) b.disabled = !selected;
+      rotLeft.disabled = rotRight.disabled = !loaded;
+      extractBtn.disabled = !selected;
+      saveBtn.disabled = !loaded;
+    }
+
+    function rotate(deg) {
+      const target = pages.some((p) => p.sel) ? pages.filter((p) => p.sel) : pages;
+      for (const p of target) p.rot += deg;
+      draw();
+    }
+    function move(dir) {
+      if (dir < 0) {
+        for (let i = 1; i < pages.length; i++) {
+          if (pages[i].sel && !pages[i - 1].sel) [pages[i - 1], pages[i]] = [pages[i], pages[i - 1]];
+        }
+      } else {
+        for (let i = pages.length - 2; i >= 0; i--) {
+          if (pages[i].sel && !pages[i + 1].sel) [pages[i + 1], pages[i]] = [pages[i], pages[i + 1]];
+        }
+      }
+      draw();
+    }
+    function removeSelected() {
+      if (pages.every((p) => p.sel)) { status.textContent = 'A PDF needs at least one page. To delete every page, delete the file instead.'; return; }
+      pages = pages.filter((p) => !p.sel);
+      draw();
+    }
+
+    function saveOut(onlySelected) {
+      const list = onlySelected ? pages.filter((p) => p.sel) : pages.slice();
+      if (!list.length || !bytes) return;
+      const btn = onlySelected ? extractBtn : saveBtn;
+      const suffix = onlySelected ? ' (extract).pdf' : ' (organized).pdf';
+      busy(btn, status, (progress) => saveWith(baseName(fileName) + suffix, async () => {
+        progress('Building the PDF…');
+        const { PDFDocument, degrees } = await getPdfLib();
+        const source = await PDFDocument.load(bytes, { updateMetadata: false }).catch(() => { throw new Error(fileName + ' is password-protected or damaged, so its pages can’t be changed.'); });
+        const out = await PDFDocument.create();
+        const copied = await out.copyPages(source, list.map((p) => p.n));
+        copied.forEach((page, i) => {
+          const extra = list[i].rot;
+          if (extra) page.setRotation(degrees((((page.getRotation().angle + extra) % 360) + 360) % 360));
+          out.addPage(page);
+        });
+        return out.save();
+      }, progress)).then((res) => { if (res) { status.textContent = ''; afterSave(res); } });
+    }
+  }
+
+  // ---------- Merge ----------
+  function mergeTool() {
+    const list = [];
+    const status = el('span', { class: 'status', role: 'status' });
+    const ul = el('ul', { class: 'file-list' });
+    const src = sourceField({ label: 'Add a PDF from your tabs or Recent' });
+    const saveBtn = button('primary', 'Merge and save…', save);
+
+    function draw() {
+      ul.replaceChildren(...list.map((entry, i) => el('li', { class: 'file-row' },
+        el('span', { class: 'name', text: (i + 1) + '. ' + entry.name }),
+        el('button', { type: 'button', class: 'icon-btn', title: 'Move up', 'aria-label': 'Move ' + entry.name + ' up', html: ICONS.up, disabled: i === 0 ? true : null, onclick: () => { [list[i - 1], list[i]] = [list[i], list[i - 1]]; draw(); } }),
+        el('button', { type: 'button', class: 'icon-btn', title: 'Move down', 'aria-label': 'Move ' + entry.name + ' down', html: ICONS.down, disabled: i === list.length - 1 ? true : null, onclick: () => { [list[i + 1], list[i]] = [list[i], list[i + 1]]; draw(); } }),
+        el('button', { type: 'button', class: 'icon-btn', title: 'Remove', 'aria-label': 'Remove ' + entry.name, html: ICONS.x, onclick: () => { list.splice(i, 1); draw(); } }))));
+      if (!list.length) ul.replaceChildren(el('li', { class: 'empty-line', text: 'No PDFs added yet. Add at least two.' }));
+      saveBtn.disabled = list.length < 2;
+    }
+    const add = (name, filePromise) => { filePromise.catch(() => {}); list.push({ name, file: filePromise }); draw(); };
+
+    openDialog({
+      title: 'Merge PDFs',
+      body: el('div', {},
+        el('div', { class: 'inline', style: 'align-items: flex-end' }, el('div', { style: 'flex: 1; min-width: 240px' }, src.node),
+          el('div', { class: 'form-row' }, button('secondary', 'Add', () => { if (src.select.value) add(src.name(), src.get()); }))),
+        el('div', { class: 'inline', style: 'margin-bottom: 14px' },
+          button('secondary sm', 'Add PDFs from your PC…', async () => { for (const p of await pickPdfs(true)) add(p.file.name, Promise.resolve(p.file)); }),
+          button('secondary sm', 'Add all open tabs', () => { for (const t of tabs) add(t.name, Promise.resolve(t.file)); }, { disabled: tabs.length ? null : true })),
+        el('h3', { class: 'field-label', style: 'margin: 0 0 8px', text: 'Order in the merged PDF' }),
+        ul),
+      footer: [status, saveBtn]
+    });
+    draw();
+
+    function save() {
+      const name = baseName(list[0].name) + ' (merged).pdf';
+      busy(saveBtn, status, (progress) => saveWith(name, async () => {
+        const { PDFDocument } = await getPdfLib();
+        const out = await PDFDocument.create();
+        for (let i = 0; i < list.length; i++) {
+          progress('Adding ' + (i + 1) + ' of ' + list.length + '…');
+          const file = await list[i].file;
+          const source = await loadForEditing(file);
+          const copied = await out.copyPages(source, source.getPageIndices());
+          copied.forEach((p) => out.addPage(p));
+        }
+        progress('Saving…');
+        return out.save();
+      }, progress)).then((res) => { if (res) { status.textContent = ''; afterSave(res); } });
+    }
+  }
+
+  // ---------- Split ----------
+  function splitTool(preset) {
+    let source = null;
+    let fileName = '';
+    const status = el('span', { class: 'status', role: 'status' });
+    const info = el('p', { class: 'help', role: 'status' });
+    const src = sourceField({ preset, onLoad: async (p) => {
+      source = null;
+      info.textContent = 'Reading…';
+      try {
+        const file = await p;
+        source = await loadForEditing(file);
+        fileName = file.name;
+        update();
+      } catch (err) {
+        info.textContent = friendly(err);
+        update();
+      }
+    } });
+    const mode = selectField([['each', 'Every page as its own PDF'], ['every', 'Every few pages'], ['ranges', 'Page ranges I choose']], 'ranges');
+    const every = numberField(2, 1);
+    const ranges = el('input', { type: 'text', class: 'field', placeholder: 'For example 1-3, 4-10, 11-end' });
+    const everyRow = formRow('Pages in each PDF', every);
+    const rangesRow = formRow('Page ranges', ranges, 'Each range becomes its own PDF. Use “end” for the last page.');
+    const runBtn = button('primary', 'Choose a folder and split…', run);
+
+    function groups() {
+      const max = source ? source.getPageCount() : 0;
+      if (!max) return { error: 'Choose a PDF first.' };
+      if (mode.value === 'each') return { groups: range(0, max - 1).map((i) => [i]) };
+      if (mode.value === 'every') {
+        const n = Number(every.value);
+        if (!Number.isInteger(n) || n < 1) return { error: 'Enter how many pages go in each PDF.' };
+        const out = [];
+        for (let i = 0; i < max; i += n) out.push(range(i, Math.min(max, i + n) - 1));
+        return { groups: out };
+      }
+      return parseRanges(ranges.value, max);
+    }
+    function update() {
+      everyRow.hidden = mode.value !== 'every';
+      rangesRow.hidden = mode.value !== 'ranges';
+      if (!source) { runBtn.disabled = true; return; }
+      const g = groups();
+      if (g.error) {
+        info.textContent = plural(source.getPageCount(), 'page') + '. ' + (mode.value === 'ranges' && !ranges.value.trim() ? 'Enter the ranges to split into.' : g.error);
+        runBtn.disabled = true;
+      } else {
+        info.textContent = plural(source.getPageCount(), 'page') + '. This creates ' + plural(g.groups.length, 'PDF') + '.';
+        runBtn.disabled = false;
+      }
+    }
+    mode.addEventListener('change', update);
+    every.addEventListener('input', update);
+    ranges.addEventListener('input', update);
+
+    openDialog({
+      title: 'Split a PDF',
+      body: el('div', {}, src.node, info, el('div', { style: 'height: 10px' }), formRow('How to split', mode), everyRow, rangesRow,
+        el('p', { class: 'help', text: 'You choose a folder, and the new PDFs are saved there. Existing files are never overwritten.' })),
+      footer: [status, runBtn]
+    });
+    update();
+
+    async function uniqueName(dir, name) {
+      let candidate = name;
+      for (let i = 2; i < 1000; i++) {
+        try {
+          await dir.getFileHandle(candidate);
+          candidate = baseName(name) + ' (' + i + ').pdf';
+        } catch (err) {
+          if (err.name === 'NotFoundError' || err.name === 'TypeMismatchError') return candidate;
+          throw err;
+        }
+      }
+      return candidate;
+    }
+
+    function run() {
+      const g = groups();
+      if (g.error) { status.textContent = g.error; status.classList.add('err'); return; }
+      busy(runBtn, status, async (progress) => {
+        let dir = null;
+        if ('showDirectoryPicker' in window) {
+          try {
+            dir = await window.showDirectoryPicker({ mode: 'readwrite' });
+          } catch (err) {
+            if (err.name === 'AbortError') return null;
+            throw err;
+          }
+        }
+        const { PDFDocument } = await getPdfLib();
+        const base = baseName(fileName);
+        for (let i = 0; i < g.groups.length; i++) {
+          progress('Creating ' + (i + 1) + ' of ' + g.groups.length + '…');
+          const pagesIn = g.groups[i];
+          const out = await PDFDocument.create();
+          const copied = await out.copyPages(source, pagesIn);
+          copied.forEach((p) => out.addPage(p));
+          const bytes = await out.save();
+          const label = pagesIn.length === 1 ? 'page ' + (pagesIn[0] + 1) : 'pages ' + (pagesIn[0] + 1) + '-' + (pagesIn[pagesIn.length - 1] + 1);
+          const name = base + ' (' + label + ').pdf';
+          if (dir) {
+            const handle = await dir.getFileHandle(await uniqueName(dir, name), { create: true });
+            const w = await handle.createWritable();
+            await w.write(new Blob([bytes], { type: 'application/pdf' }));
+            await w.close();
+          } else {
+            downloadBytes(bytes, name);
+          }
+        }
+        return { count: g.groups.length, dir };
+      }).then((res) => {
+        if (!res) return;
+        status.textContent = '';
+        toast('Created ' + plural(res.count, 'PDF') + (res.dir ? ' in “' + res.dir.name + '”.' : '.'));
+      });
+    }
+  }
+
+  // ---------- Images to PDF ----------
+  function imagesTool() {
+    const list = [];
+    const status = el('span', { class: 'status', role: 'status' });
+    const ul = el('ul', { class: 'file-list' });
+    const size = selectField([['fit', 'Same size as each image'], ['a4', 'A4, image fitted to the page'], ['letter', 'US Letter, image fitted to the page']], 'a4');
+    const margin = selectField([['0', 'None'], ['18', 'Small'], ['36', 'Medium']], '18');
+    const saveBtn = button('primary', 'Save as PDF…', save);
+
+    function draw() {
+      ul.replaceChildren(...list.map((entry, i) => el('li', { class: 'file-row' },
+        el('img', { src: entry.url, alt: '' }),
+        el('span', { class: 'name', text: (i + 1) + '. ' + entry.file.name }),
+        el('button', { type: 'button', class: 'icon-btn', title: 'Move up', 'aria-label': 'Move ' + entry.file.name + ' up', html: ICONS.up, disabled: i === 0 ? true : null, onclick: () => { [list[i - 1], list[i]] = [list[i], list[i - 1]]; draw(); } }),
+        el('button', { type: 'button', class: 'icon-btn', title: 'Move down', 'aria-label': 'Move ' + entry.file.name + ' down', html: ICONS.down, disabled: i === list.length - 1 ? true : null, onclick: () => { [list[i + 1], list[i]] = [list[i], list[i + 1]]; draw(); } }),
+        el('button', { type: 'button', class: 'icon-btn', title: 'Remove', 'aria-label': 'Remove ' + entry.file.name, html: ICONS.x, onclick: () => { URL.revokeObjectURL(entry.url); list.splice(i, 1); draw(); } }))));
+      if (!list.length) ul.replaceChildren(el('li', { class: 'empty-line', text: 'No images added yet.' }));
+      saveBtn.disabled = !list.length;
+    }
+
+    const state = openDialog({
+      title: 'Images to PDF',
+      body: el('div', {},
+        el('div', { class: 'inline', style: 'margin-bottom: 14px' }, button('secondary', 'Add images…', async () => {
+          for (const file of await pickImages(true)) list.push({ file, url: URL.createObjectURL(file) });
+          draw();
+        })),
+        ul,
+        el('div', { class: 'form-grid' }, formRow('Page size', size), formRow('Margin', margin)),
+        el('p', { class: 'help', text: 'Each image gets its own page, turned to portrait or landscape to suit it. Phone photos are rotated the right way up.' })),
+      footer: [status, saveBtn]
+    });
+    state.cleanup = () => list.forEach((e) => URL.revokeObjectURL(e.url));
+    draw();
+
+    function save() {
+      busy(saveBtn, status, (progress) => saveWith('Images.pdf', async () => {
+        const { PDFDocument } = await getPdfLib();
+        const out = await PDFDocument.create();
+        const m = Number(margin.value);
+        for (let i = 0; i < list.length; i++) {
+          progress('Adding image ' + (i + 1) + ' of ' + list.length + '…');
+          const img = await normalizeImage(list[i].file);
+          const embedded = img.png ? await out.embedPng(img.bytes) : await out.embedJpg(img.bytes);
+          const iw = img.width * 0.75;
+          const ih = img.height * 0.75;
+          let pw;
+          let ph;
+          if (size.value === 'fit') {
+            pw = iw + m * 2;
+            ph = ih + m * 2;
+          } else {
+            const [a, b] = size.value === 'a4' ? [595.28, 841.89] : [612, 792];
+            [pw, ph] = iw > ih ? [b, a] : [a, b];
+          }
+          const s = Math.min((pw - m * 2) / iw, (ph - m * 2) / ih, size.value === 'fit' ? 1 : Infinity);
+          const w = iw * s;
+          const h = ih * s;
+          const page = out.addPage([pw, ph]);
+          page.drawImage(embedded, { x: (pw - w) / 2, y: (ph - h) / 2, width: w, height: h });
+        }
+        progress('Saving…');
+        return out.save();
+      }, progress)).then((res) => { if (res) { status.textContent = ''; afterSave(res); } });
+    }
+  }
+
+  // ---------- Page numbers ----------
+  function numbersTool(preset) {
+    const status = el('span', { class: 'status', role: 'status' });
+    const src = sourceField({ preset });
+    const position = selectField([['bc', 'Bottom centre'], ['br', 'Bottom right'], ['bl', 'Bottom left'], ['tc', 'Top centre'], ['tr', 'Top right']], 'bc');
+    const format = selectField([['n', '1, 2, 3'], ['page', 'Page 1, Page 2'], ['pageof', 'Page 1 of 12']], 'pageof');
+    const start = numberField(1, 0);
+    const fontSize = selectField([['9', '9 point'], ['10', '10 point'], ['11', '11 point'], ['12', '12 point']], '10');
+    const skipFirst = el('input', { type: 'checkbox', id: uid('f') });
+    const saveBtn = button('primary', 'Save as new PDF…', save);
+
+    openDialog({
+      title: 'Add page numbers',
+      body: el('div', {}, src.node,
+        el('div', { class: 'form-grid' }, formRow('Position', position), formRow('Style', format), formRow('Start at', start), formRow('Text size', fontSize)),
+        el('label', { class: 'choice', for: skipFirst.id }, skipFirst, 'Don’t number the first page (a cover, for example)')),
+      footer: [status, saveBtn]
+    });
+
+    function save() {
+      const first = Number(start.value);
+      if (!Number.isInteger(first) || first < 0) { status.textContent = 'Enter the number to start from.'; status.classList.add('err'); return; }
+      busy(saveBtn, status, (progress) => saveWith(baseName(src.name()) + ' (numbered).pdf', async () => {
+        const file = await src.get();
+        const { StandardFonts, rgb } = await getPdfLib();
+        const doc = await loadForEditing(file);
+        const font = await doc.embedFont(StandardFonts.Helvetica);
+        const size = Number(fontSize.value);
+        const pagesAll = doc.getPages();
+        const skip = skipFirst.checked ? 1 : 0;
+        const last = first + pagesAll.length - skip - 1;
+        pagesAll.forEach((page, i) => {
+          if (i < skip) return;
+          const n = first + i - skip;
+          const text = format.value === 'n' ? String(n) : format.value === 'page' ? 'Page ' + n : 'Page ' + n + ' of ' + last;
+          const box = boxOf(page);
+          const w = font.widthOfTextAtSize(text, size);
+          const margin = 28;
+          const pos = position.value;
+          const x = pos[1] === 'c' ? box.x + (box.w - w) / 2 : pos[1] === 'r' ? box.x + box.w - margin - w : box.x + margin;
+          const y = pos[0] === 'b' ? box.y + margin : box.y + box.h - margin - size;
+          page.drawText(text, { x, y, size, font, color: rgb(0.2, 0.2, 0.2) });
+        });
+        progress('Saving…');
+        return doc.save();
+      }, progress)).then((res) => { if (res) { status.textContent = ''; afterSave(res); } });
+    }
+  }
+
+  // ---------- Watermark ----------
+  function watermarkTool(preset) {
+    const status = el('span', { class: 'status', role: 'status' });
+    const src = sourceField({ preset });
+    const text = el('input', { type: 'text', class: 'field', value: 'DRAFT' });
+    const strength = selectField([['0.12', 'Light'], ['0.2', 'Medium'], ['0.32', 'Strong']], '0.2');
+    const colour = selectField([['grey', 'Grey'], ['red', 'Red'], ['blue', 'Blue']], 'grey');
+    const angle = selectField([['diag', 'Diagonal'], ['flat', 'Horizontal']], 'diag');
+    const saveBtn = button('primary', 'Save as new PDF…', save);
+
+    openDialog({
+      title: 'Add a watermark',
+      body: el('div', {}, src.node, formRow('Text', text),
+        el('div', { class: 'form-grid' }, formRow('Strength', strength), formRow('Colour', colour), formRow('Direction', angle))),
+      footer: [status, saveBtn]
+    });
+
+    function save() {
+      const words = text.value.trim();
+      if (!words) { status.textContent = 'Enter the watermark text.'; status.classList.add('err'); return; }
+      busy(saveBtn, status, (progress) => saveWith(baseName(src.name()) + ' (watermarked).pdf', async () => {
+        const file = await src.get();
+        const { StandardFonts, rgb, degrees } = await getPdfLib();
+        const doc = await loadForEditing(file);
+        let font;
+        try {
+          font = await doc.embedFont(StandardFonts.HelveticaBold);
+          font.widthOfTextAtSize(words, 10);
+        } catch (err) {
+          throw new Error('The watermark text can only use standard Latin letters, numbers and punctuation.');
+        }
+        const color = { grey: rgb(0.45, 0.45, 0.45), red: rgb(0.78, 0.06, 0.18), blue: rgb(0.1, 0.3, 0.75) }[colour.value];
+        for (const page of doc.getPages()) {
+          const box = boxOf(page);
+          const theta = angle.value === 'diag' ? Math.atan2(box.h, box.w) : 0;
+          const span = angle.value === 'diag' ? Math.hypot(box.w, box.h) * 0.62 : box.w * 0.72;
+          const size = clamp(span / font.widthOfTextAtSize(words, 1), 18, 160);
+          const w = font.widthOfTextAtSize(words, size);
+          const cx = box.x + box.w / 2;
+          const cy = box.y + box.h / 2;
+          const x = cx - (w / 2) * Math.cos(theta) + size * 0.35 * Math.sin(theta);
+          const y = cy - (w / 2) * Math.sin(theta) - size * 0.35 * Math.cos(theta);
+          page.drawText(words, { x, y, size, font, color, opacity: Number(strength.value), rotate: degrees((theta * 180) / Math.PI) });
+        }
+        progress('Saving…');
+        return doc.save();
+      }, progress)).then((res) => { if (res) { status.textContent = ''; afterSave(res); } });
+    }
+  }
+
+  // ---------- Stamp an image ----------
+  function stampTool(preset) {
+    let image = null;
+    let previewUrl = null;
+    const status = el('span', { class: 'status', role: 'status' });
+    const src = sourceField({ preset });
+    const preview = el('img', { alt: '', style: 'max-width: 160px; max-height: 70px; display: none; background: #fff; border: 1px solid var(--line); border-radius: 4px' });
+    const imgName = el('span', { class: 'muted', text: 'No image chosen' });
+    const which = selectField([['last', 'Last page'], ['first', 'First page'], ['all', 'Every page'], ['custom', 'Pages I choose']], 'last');
+    const custom = el('input', { type: 'text', class: 'field', placeholder: 'For example 2, 5-7' });
+    const customRow = formRow('Pages', custom);
+    const position = selectField([['br', 'Bottom right'], ['bl', 'Bottom left'], ['bc', 'Bottom centre'], ['tr', 'Top right'], ['tl', 'Top left'], ['c', 'Centre']], 'br');
+    const width = numberField(45, 5, 400);
+    const margin = numberField(15, 0, 100);
+    const saveBtn = button('primary', 'Save as new PDF…', save);
+    const sync = () => { customRow.hidden = which.value !== 'custom'; };
+    which.addEventListener('change', sync);
+
+    const state = openDialog({
+      title: 'Stamp an image',
+      body: el('div', {}, src.node,
+        el('div', { class: 'form-row' }, el('span', { class: 'field-label', text: 'Image' }),
+          el('div', { class: 'inline' }, button('secondary sm', 'Choose image…', async () => {
+            const files = await pickImages(false);
+            if (!files.length) return;
+            image = files[0];
+            if (previewUrl) URL.revokeObjectURL(previewUrl);
+            previewUrl = URL.createObjectURL(image);
+            preview.src = previewUrl;
+            preview.style.display = 'block';
+            imgName.textContent = image.name;
+          }), imgName), preview,
+          el('p', { class: 'help', text: 'A PNG with a transparent background looks best for signatures. This places a picture; it isn’t a certified digital signature.' })),
+        el('div', { class: 'form-grid' }, formRow('Put it on', which), customRow, formRow('Position', position), formRow('Width (mm)', width), formRow('Distance from edge (mm)', margin))),
+      footer: [status, saveBtn]
+    });
+    state.cleanup = () => { if (previewUrl) URL.revokeObjectURL(previewUrl); };
+    sync();
+
+    function save() {
+      if (!image) { status.textContent = 'Choose the image to stamp.'; status.classList.add('err'); return; }
+      const wmm = Number(width.value);
+      const mmm = Number(margin.value);
+      if (!(wmm > 0) || !(mmm >= 0)) { status.textContent = 'Check the width and distance from the edge.'; status.classList.add('err'); return; }
+      busy(saveBtn, status, (progress) => saveWith(baseName(src.name()) + ' (stamped).pdf', async () => {
+        const file = await src.get();
+        const doc = await loadForEditing(file);
+        const count = doc.getPageCount();
+        let targets;
+        if (which.value === 'last') targets = [count - 1];
+        else if (which.value === 'first') targets = [0];
+        else if (which.value === 'all') targets = range(0, count - 1);
+        else {
+          const parsed = parseRanges(custom.value, count);
+          if (parsed.error) throw new Error(parsed.error);
+          targets = Array.from(new Set(parsed.groups.flat()));
+        }
+        const img = await normalizeImage(image);
+        const embedded = img.png ? await doc.embedPng(img.bytes) : await doc.embedJpg(img.bytes);
+        const w = wmm * MM;
+        const h = (w * img.height) / img.width;
+        const m = mmm * MM;
+        const pagesAll = doc.getPages();
+        for (const i of targets) {
+          const page = pagesAll[i];
+          const box = boxOf(page);
+          const pos = position.value;
+          const x = pos === 'c' || pos === 'bc' ? box.x + (box.w - w) / 2 : pos.endsWith('r') ? box.x + box.w - m - w : box.x + m;
+          const y = pos === 'c' ? box.y + (box.h - h) / 2 : pos.startsWith('t') ? box.y + box.h - m - h : box.y + m;
+          page.drawImage(embedded, { x, y, width: w, height: h });
+        }
+        progress('Saving…');
+        return doc.save();
+      }, progress)).then((res) => { if (res) { status.textContent = ''; afterSave(res); } });
+    }
+  }
+
+  // ============================================================
+  // Keyboard, safety and start-up
+  // ============================================================
+  document.addEventListener('keydown', (e) => {
+    if (dlg.open || promptDlg.open || !menuEl.hidden) return;
+    const ctrl = e.ctrlKey || e.metaKey;
+    const key = e.key.toLowerCase();
+    if (ctrl && !e.shiftKey && !e.altKey && key === 'o') { e.preventDefault(); chooseAndOpen(); return; }
+    if (ctrl && e.key === 'PageDown') { e.preventDefault(); cycleTabs(1); return; }
+    if (ctrl && e.key === 'PageUp') { e.preventDefault(); cycleTabs(-1); return; }
+    if (e.altKey && !ctrl && e.key === 'Home') { e.preventDefault(); activate(HOME); return; }
+    if (ctrl && !e.shiftKey && !e.altKey && /^[1-9]$/.test(e.key) && tabs.length) {
+      e.preventDefault();
+      const t = e.key === '9' ? tabs[tabs.length - 1] : tabs[Number(e.key) - 1];
+      if (t) activate(t.id);
+      return;
+    }
+    if (ctrl && !e.shiftKey && key === 'f' && activeId === HOME) { e.preventDefault(); searchEl.focus(); searchEl.select(); }
+  });
+
+  // Closing the window (including Ctrl+W) would lose open PDFs and any unsaved annotations.
+  window.addEventListener('beforeunload', (e) => {
+    if (!tabs.length) return;
+    e.preventDefault();
+    e.returnValue = '';
+  });
+
+  // Ask Edge not to clear this app's storage under disk pressure.
+  if (navigator.storage && navigator.storage.persist) {
+    navigator.storage.persisted().then((granted) => (granted ? null : navigator.storage.persist())).catch(() => {});
+  }
+
   const installed = window.matchMedia('(display-mode: standalone), (display-mode: window-controls-overlay)').matches;
   $('#hint').textContent = installed
-    ? 'Open a PDF from File Explorer with right-click, Open with, Sureshot PDF. This list is stored only on this PC.'
+    ? 'Open PDFs from File Explorer with right-click, Open with, Sureshot PDF. Your library is stored only on this PC.'
     : 'Install Sureshot PDF from the app icon in Edge’s address bar to open PDFs straight from File Explorer.';
 
   if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
@@ -1174,12 +3645,28 @@
   }
 
   activate(HOME);
-  const ready = Promise.all([load('recents').catch(() => null), load('handles').catch(() => null)]).then(([r, h]) => {
-    recents = Array.isArray(r) ? r.filter((x) => x && x.handle && x.id) : [];
-    trimRecents();
-    savedSession = Array.isArray(h) ? h : [];
-    if (activeId === HOME) renderHome();
-  });
+
+  (async () => {
+    const [storedRecords, storedHandles, storedCollections, textKeys] = await Promise.all([
+      dbGet('session', 'recents').catch(() => null),
+      dbGet('session', 'handles').catch(() => null),
+      dbGet('session', 'collections').catch(() => null),
+      dbKeys('text').catch(() => [])
+    ]);
+    records = (Array.isArray(storedRecords) ? storedRecords : [])
+      .filter((r) => r && r.id && r.handle)
+      .map((r) => Object.assign({ pinned: false, favourite: false, note: '', bookmarks: [], lastOpened: null }, r));
+    collections = (Array.isArray(storedCollections) ? storedCollections : []).filter((c) => c && c.id && c.name);
+    for (const c of collections) {
+      if (c.kind === 'manual') c.fileIds = (c.fileIds || []).filter((id) => records.some((r) => r.id === id));
+    }
+    for (const k of textKeys || []) indexedSigs.add(k);
+    trimRecords();
+    savedSession = Array.isArray(storedHandles) ? storedHandles : [];
+    resolveReady();
+    renderHomeSoon();
+    for (const c of collections) if (c.kind === 'folder') scanFolder(c, { request: false });
+  })().catch(() => resolveReady());
 })();
 </script>
 </body>

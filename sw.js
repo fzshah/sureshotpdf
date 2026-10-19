@@ -1,5 +1,5 @@
-// Sureshot PDF service worker: keeps the app itself available offline.
-// PDFs are never sent here; they stay in the browser as local blobs.
+// Sureshot PDF service worker: keeps the app available offline.
+// PDFs are never sent here; they stay in the browser as local data.
 const CACHE = 'sureshot-pdf-v4';
 const APP_FILES = [
   './',
@@ -9,11 +9,10 @@ const APP_FILES = [
   './icons/icon-512.png',
   './icons/icon-maskable-512.png'
 ];
+const LIBRARY_HOST = 'cdnjs.cloudflare.com';
 
 self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches.open(CACHE).then((cache) => cache.addAll(APP_FILES)).then(() => self.skipWaiting())
-  );
+  event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(APP_FILES)).then(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', (event) => {
@@ -24,12 +23,28 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// Network first, so updates you push to GitHub arrive; cached copy when offline.
 self.addEventListener('fetch', (event) => {
   const request = event.request;
+  if (request.method !== 'GET') return;
   const url = new URL(request.url);
-  if (request.method !== 'GET' || !url.protocol.startsWith('http') || url.origin !== self.location.origin) return;
 
+  // PDF.js and pdf-lib: pinned versions never change, so serve from cache once downloaded.
+  if (url.hostname === LIBRARY_HOST) {
+    event.respondWith(
+      caches.match(request).then((cached) => cached || fetch(request).then((response) => {
+        if (response.ok) {
+          const copy = response.clone();
+          caches.open(CACHE).then((cache) => cache.put(request, copy));
+        }
+        return response;
+      }))
+    );
+    return;
+  }
+
+  if (!url.protocol.startsWith('http') || url.origin !== self.location.origin) return;
+
+  // The app itself: network first so updates arrive, cached copy when offline.
   event.respondWith(
     fetch(request)
       .then((response) => {
@@ -39,8 +54,6 @@ self.addEventListener('fetch', (event) => {
         }
         return response;
       })
-      .catch(() =>
-        caches.match(request).then((cached) => cached || (request.mode === 'navigate' ? caches.match('./index.html') : undefined))
-      )
+      .catch(() => caches.match(request).then((cached) => cached || (request.mode === 'navigate' ? caches.match('./index.html') : undefined)))
   );
 });
