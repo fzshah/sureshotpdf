@@ -32,8 +32,8 @@
       --stage: #15191D;
       --ink: #E8ECEF;
       --ink-soft: #A3AEB8;
-      --line: #46505A;
-      --sight: #FF5A6B;
+      --line: #4A545E;
+      --sight: #FF6B7A;
       --button-bg: #D92A40;
       --button-ink: #FFFFFF;
       --focus: #8AB0FF;
@@ -50,10 +50,12 @@
     font: 13px/1.4 "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
     overflow: hidden;
   }
-  button { font: inherit; color: inherit; cursor: default; }
-  button:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+  button, input { font: inherit; color: inherit; }
+  button { cursor: default; }
+  button:focus-visible, input:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+  .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
-  /* Tab strip. In an installed app it sits in the title bar, next to the window buttons. */
+  /* ---------- Tab strip (sits in the title bar when installed) ---------- */
   .bar {
     position: fixed;
     top: env(titlebar-area-y, 0px);
@@ -85,9 +87,9 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    flex: 0 1 200px;
+    flex: 0 1 auto;
+    width: 200px;
     min-width: 96px;
-    max-width: 220px;
     height: calc(var(--bar-h) - 6px);
     padding: 0 4px 0 12px;
     border-radius: 8px 8px 0 0;
@@ -97,8 +99,9 @@
   .tab:hover { background: var(--chrome-2); }
   .tab.active { background: var(--sheet); color: var(--ink); }
   .tab:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+  .tab.home { flex: none; width: 44px; min-width: 44px; padding: 0; justify-content: center; }
 
-  /* The sight mark: hollow on background tabs, a centred dot on the tab you're looking at. */
+  /* Sight mark: hollow on background tabs, a centred dot on the tab you're looking at. */
   .mark {
     flex: none;
     width: 10px;
@@ -107,7 +110,7 @@
     border: 1.5px solid currentColor;
     opacity: 0.45;
   }
-  .tab.active .mark {
+  .tab.active .mark, .mark.on {
     border-color: var(--sight);
     background: radial-gradient(circle, var(--sight) 0 1.8px, transparent 2.4px);
     opacity: 1;
@@ -126,7 +129,6 @@
   }
   .close:hover { background: var(--chrome-2); opacity: 1; }
   .tab.active .close:hover { background: var(--chrome); }
-
   .add {
     -webkit-app-region: no-drag;
     app-region: no-drag;
@@ -161,28 +163,16 @@
   }
   .frame.active { visibility: visible; }
 
-  /* Nothing open */
-  .empty {
-    position: absolute;
-    inset: 0;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 10px;
-    padding: 24px;
-    text-align: center;
-    background: var(--sheet);
-  }
-  .reticle { width: 112px; height: 112px; color: color-mix(in srgb, var(--ink-soft) 55%, transparent); margin-bottom: 8px; }
-  .reticle .dot { fill: var(--sight); }
-  .empty h1 {
+  /* ---------- Home: recent files ---------- */
+  .home-view { position: absolute; inset: 0; overflow-y: auto; background: var(--sheet); }
+  .home-inner { max-width: 780px; margin: 0 auto; padding: 40px 28px 48px; }
+  .home-head { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 18px; }
+  .home-head h1 {
+    flex: 1 1 auto;
     margin: 0;
-    font: 600 24px/1.2 "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif;
+    font: 600 26px/1.2 "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif;
     letter-spacing: -0.01em;
   }
-  .empty p { margin: 0; color: var(--ink-soft); max-width: 46ch; }
-  .actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 10px; }
   .primary, .secondary {
     min-height: 34px;
     padding: 6px 16px;
@@ -193,9 +183,94 @@
   .primary:hover { filter: brightness(1.08); }
   .secondary { border: 1px solid var(--line); background: transparent; }
   .secondary:hover { background: var(--chrome); }
-  .hint { font-size: 12px; margin-top: 18px !important; }
 
-  /* Drag-and-drop target */
+  .search { position: relative; margin-bottom: 8px; }
+  .search svg { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); color: var(--ink-soft); pointer-events: none; }
+  .search input {
+    width: 100%;
+    height: 36px;
+    padding: 0 12px 0 34px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: var(--chrome);
+  }
+  .search input::placeholder { color: var(--ink-soft); }
+
+  .group h2 {
+    margin: 22px 0 4px;
+    padding: 0 10px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--ink-soft);
+  }
+  .rows { list-style: none; margin: 0; padding: 0; }
+  .row { display: flex; align-items: center; border-radius: 8px; }
+  .row:hover { background: var(--chrome); }
+  .row-open {
+    flex: 1;
+    min-width: 0;
+    display: grid;
+    grid-template-columns: 22px minmax(0, 1fr) auto auto;
+    align-items: center;
+    gap: 14px;
+    padding: 8px 10px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    text-align: left;
+  }
+  .doc { color: var(--ink-soft); display: grid; place-items: center; }
+  .row-name { display: block; font-size: 14px; font-weight: 600; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .row-meta { display: block; font-size: 12px; color: var(--ink-soft); }
+  .row-size { font-size: 12px; color: var(--ink-soft); font-variant-numeric: tabular-nums; text-align: right; min-width: 56px; }
+  .row-state { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: var(--sight); min-width: 64px; }
+  .row-remove {
+    flex: none;
+    width: 30px;
+    height: 30px;
+    margin-right: 6px;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--ink-soft);
+    display: grid;
+    place-items: center;
+    opacity: 0;
+  }
+  .row:hover .row-remove, .row:focus-within .row-remove { opacity: 1; }
+  .row-remove:hover { background: var(--chrome-2); color: var(--ink); }
+  .no-match { padding: 24px 10px; color: var(--ink-soft); }
+
+  .home-foot {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 12px 24px;
+    margin-top: 32px;
+    padding-top: 16px;
+    border-top: 1px solid var(--line);
+    font-size: 12px;
+    color: var(--ink-soft);
+  }
+  .home-foot p { margin: 0; max-width: 60ch; }
+  .link-btn { border: 0; padding: 0; background: none; color: var(--ink-soft); text-decoration: underline; font-size: 12px; }
+  .link-btn:hover { color: var(--ink); }
+
+  /* First run: nothing in Recent yet */
+  .first-run { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 56px 16px 24px; text-align: center; }
+  .first-run p { margin: 0; color: var(--ink-soft); max-width: 46ch; }
+  .first-run h2 { margin: 0; font: 600 20px/1.25 "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif; }
+  .reticle { width: 104px; height: 104px; color: color-mix(in srgb, var(--ink-soft) 55%, transparent); margin-bottom: 6px; }
+  .reticle .dot { fill: var(--sight); }
+
+  @media (max-width: 560px) {
+    .home-inner { padding: 28px 16px 40px; }
+    .row-size { display: none; }
+    .row-open { grid-template-columns: 22px minmax(0, 1fr) auto; }
+  }
+
+  /* ---------- Drag and drop ---------- */
   .drop {
     position: absolute;
     inset: 10px;
@@ -231,27 +306,49 @@
 </head>
 <body>
   <header class="bar">
-    <div class="tabs" id="tabs" role="tablist" aria-label="Open PDFs"></div>
+    <div class="tab home" id="tab-home" role="tab" aria-controls="home" aria-label="Home" title="Home" tabindex="0">
+        <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 7.2 8 2.5l5.5 4.7V13a.5.5 0 0 1-.5.5H9.6V9.8H6.4v3.7H3a.5.5 0 0 1-.5-.5Z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>
+      </div>
+    <div class="tabs" id="tabs" role="tablist" aria-label="Open PDFs" aria-owns="tab-home"></div>
     <button class="add" id="addBtn" type="button" title="Open PDFs (Ctrl+O)" aria-label="Open PDFs">
       <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M7 1v12M1 7h12" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
     </button>
   </header>
 
   <main id="stage">
-    <section class="empty" id="empty">
-      <svg class="reticle" viewBox="0 0 120 120" aria-hidden="true">
-        <circle cx="60" cy="60" r="42" fill="none" stroke="currentColor" stroke-width="2"/>
-        <circle cx="60" cy="60" r="22" fill="none" stroke="currentColor" stroke-width="1.5"/>
-        <path d="M60 4v26M60 90v26M4 60h26M90 60h26" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-        <circle class="dot" cx="60" cy="60" r="5"/>
-      </svg>
-      <h1>No PDFs open</h1>
-      <p>Drop PDF files into this window, or choose them from your PC. Each one opens in its own tab.</p>
-      <div class="actions">
-        <button class="primary" id="chooseBtn" type="button">Choose PDFs</button>
-        <button class="secondary" id="restoreBtn" type="button" hidden>Reopen last session’s PDFs</button>
+    <section class="home-view" id="home" role="tabpanel" aria-labelledby="tab-home">
+      <div class="home-inner">
+        <div class="home-head">
+          <h1>Recent</h1>
+          <button class="secondary" id="restoreBtn" type="button" hidden>Reopen last session</button>
+          <button class="primary" id="chooseBtn" type="button">Choose PDFs</button>
+        </div>
+
+        <div id="recentFull" hidden>
+          <div class="search" id="searchWrap" hidden>
+            <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><circle cx="6" cy="6" r="4.5" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="m9.5 9.5 3 3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+            <label class="sr-only" for="search">Find a recent PDF</label>
+            <input id="search" type="search" placeholder="Find a recent PDF" autocomplete="off">
+          </div>
+          <div id="groups"></div>
+        </div>
+
+        <div class="first-run" id="recentEmpty">
+          <svg class="reticle" viewBox="0 0 120 120" aria-hidden="true">
+            <circle cx="60" cy="60" r="42" fill="none" stroke="currentColor" stroke-width="2"/>
+            <circle cx="60" cy="60" r="22" fill="none" stroke="currentColor" stroke-width="1.5"/>
+            <path d="M60 4v26M60 90v26M4 60h26M90 60h26" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            <circle class="dot" cx="60" cy="60" r="5"/>
+          </svg>
+          <h2>No recent PDFs yet</h2>
+          <p>PDFs you open will be listed here, so you can get back to any of them with one click. You can also drop PDF files anywhere in this window.</p>
+        </div>
+
+        <div class="home-foot">
+          <p id="hint"></p>
+          <button class="link-btn" id="clearBtn" type="button" hidden>Clear the Recent list</button>
+        </div>
       </div>
-      <p class="hint" id="hint"></p>
     </section>
 
     <div class="drop" id="drop" hidden>
@@ -272,21 +369,34 @@
   'use strict';
 
   const APP = 'Sureshot PDF';
+  const HOME = 'home';
+  const MAX_RECENTS = 40;
+  const DAY = 86400000;
+
   const $ = (sel) => document.querySelector(sel);
   const tabsEl = $('#tabs');
+  const homeTab = $('#tab-home');
+  const homeEl = $('#home');
   const stage = $('#stage');
-  const emptyEl = $('#empty');
   const dropEl = $('#drop');
   const toastEl = $('#toast');
   const restoreBtn = $('#restoreBtn');
+  const clearBtn = $('#clearBtn');
   const fileInput = $('#fileInput');
+  const groupsEl = $('#groups');
+  const searchEl = $('#search');
 
   const CLOSE_ICON = '<svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>';
+  const DOC_ICON = '<svg width="18" height="22" viewBox="0 0 18 22" aria-hidden="true"><path d="M2.5 1.5h8.5l4.5 4.5v14a.5.5 0 0 1-.5.5h-12.5a.5.5 0 0 1-.5-.5V2a.5.5 0 0 1 .5-.5Z" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M11 1.5V6h4.5" fill="none" stroke="currentColor" stroke-width="1.3"/></svg>';
 
-  /** @type {{id:number,name:string,key:string,url:string,handle:any,tabEl:HTMLElement,frame:HTMLIFrameElement}[]} */
+  // Open tabs: {id, name, key, url, handle, recentId, tabEl, frame}
   const tabs = [];
-  let activeId = null;
+  let activeId = HOME;
   let nextId = 1;
+
+  // Recent files, newest first: {id, name, size, lastOpened, handle}
+  let recents = [];
+  let savedSession = [];
 
   const isPdf = (file) => !!file && (file.type === 'application/pdf' || /\.pdf$/i.test(file.name || ''));
   const keyOf = (file) => file.name + '|' + file.size + '|' + file.lastModified;
@@ -294,15 +404,20 @@
 
   // ---------- Tabs ----------
 
+  // Opens a file in a new tab (or switches to it if it's already open). Returns the tab.
   function openFile(file, handle) {
-    if (!file) return;
+    if (!file) return null;
     if (!isPdf(file)) {
       toast('Skipped ' + file.name + '. Sureshot PDF opens PDF files only.');
-      return;
+      return null;
     }
     const key = keyOf(file);
     const existing = tabs.find((t) => t.key === key);
-    if (existing) { activate(existing.id); return; }
+    if (existing) {
+      if (handle && !existing.handle) existing.handle = handle;
+      activate(existing.id);
+      return existing;
+    }
 
     const id = nextId++;
     const url = URL.createObjectURL(new Blob([file], { type: 'application/pdf' }));
@@ -348,13 +463,21 @@
 
     stage.insertBefore(frame, dropEl);
     tabsEl.appendChild(tabEl);
-    tabs.push({ id, name: file.name, key, url, handle: handle || null, tabEl, frame });
+    const tab = { id, name: file.name, key, url, handle: handle || null, recentId: null, tabEl, frame };
+    tabs.push(tab);
     activate(id);
     saveSession();
+    return tab;
   }
 
   function activate(id) {
     activeId = id;
+    const onHome = id === HOME;
+    homeTab.classList.toggle('active', onHome);
+    homeTab.setAttribute('aria-selected', String(onHome));
+    homeTab.tabIndex = onHome ? 0 : -1;
+    homeEl.hidden = !onHome;
+
     for (const t of tabs) {
       const on = t.id === id;
       t.tabEl.classList.toggle('active', on);
@@ -365,7 +488,7 @@
     const t = findTab(id);
     document.title = t ? t.name + ' — ' + APP : APP;
     if (t) t.tabEl.scrollIntoView({ block: 'nearest', inline: 'nearest' });
-    emptyEl.hidden = tabs.length > 0;
+    if (onHome) renderHome();
   }
 
   function closeTab(id) {
@@ -379,38 +502,56 @@
 
     if (activeId === id) {
       const next = tabs[Math.min(index, tabs.length - 1)];
-      activate(next ? next.id : null);
-      if (hadFocus && next) next.tabEl.focus();
-    } else {
-      emptyEl.hidden = tabs.length > 0;
+      activate(next ? next.id : HOME);
+      if (hadFocus) (next ? next.tabEl : homeTab).focus();
+    } else if (activeId === HOME) {
+      renderHome();
     }
     saveSession();
   }
 
   function onTabKey(e) {
-    const i = tabs.findIndex((t) => t.tabEl === e.currentTarget);
+    const order = [homeTab].concat(tabs.map((t) => t.tabEl));
+    const i = order.indexOf(e.currentTarget);
     if (i < 0) return;
     let j = null;
-    if (e.key === 'ArrowRight') j = (i + 1) % tabs.length;
-    else if (e.key === 'ArrowLeft') j = (i - 1 + tabs.length) % tabs.length;
+    if (e.key === 'ArrowRight') j = (i + 1) % order.length;
+    else if (e.key === 'ArrowLeft') j = (i - 1 + order.length) % order.length;
     else if (e.key === 'Home') j = 0;
-    else if (e.key === 'End') j = tabs.length - 1;
-    else if (e.key === 'Delete') { e.preventDefault(); closeTab(tabs[i].id); return; }
+    else if (e.key === 'End') j = order.length - 1;
+    else if (e.key === 'Delete' && i > 0) { e.preventDefault(); closeTab(tabs[i - 1].id); return; }
+    else if ((e.key === 'Enter' || e.key === ' ') && i === 0) { e.preventDefault(); activate(HOME); return; }
     if (j !== null) {
       e.preventDefault();
-      activate(tabs[j].id);
-      tabs[j].tabEl.focus();
+      activate(j === 0 ? HOME : tabs[j - 1].id);
+      order[j].focus();
     }
   }
 
+  homeTab.addEventListener('click', () => activate(HOME));
+  homeTab.addEventListener('keydown', onTabKey);
+
   // ---------- Opening files ----------
 
+  // Opens a file and, when we have a handle to it, records it in Recent.
+  async function openAndRemember(file, handle) {
+    const tab = openFile(file, handle);
+    if (tab && handle) {
+      try { tab.recentId = await rememberRecent(handle, file); } catch (err) { /* Recent is a convenience */ }
+      if (activeId === HOME) renderHome();
+    }
+    return tab;
+  }
+
   async function openHandle(handle) {
+    let file;
     try {
-      openFile(await handle.getFile(), handle);
+      file = await handle.getFile();
     } catch (err) {
       toast('Couldn’t open ' + handle.name + '. ' + err.message);
+      return;
     }
+    await openAndRemember(file, handle);
   }
 
   async function pickFiles() {
@@ -492,11 +633,11 @@
 
     for (const entry of entries) {
       const handle = await entry.handle;
-      openFile(entry.file, handle && handle.kind === 'file' ? handle : null);
+      await openAndRemember(entry.file, handle && handle.kind === 'file' ? handle : null);
     }
   });
 
-  // ---------- Session (reopen last session's PDFs) ----------
+  // ---------- Storage (kept in this app, on this PC) ----------
 
   function idb(mode, op) {
     return new Promise((resolve, reject) => {
@@ -513,34 +654,230 @@
       };
     });
   }
+  const load = (key) => idb('readonly', (store) => store.get(key));
+  const store = (key, value) => idb('readwrite', (s) => s.put(value, key)).catch(() => {});
 
   let saveTimer = null;
   function saveSession() {
     clearTimeout(saveTimer);
     saveTimer = setTimeout(() => {
-      const handles = tabs.filter((t) => t.handle).map((t) => t.handle);
-      idb('readwrite', (store) => store.put(handles, 'handles')).catch(() => {});
+      store('handles', tabs.filter((t) => t.handle).map((t) => t.handle));
     }, 300);
   }
 
-  let savedHandles = [];
-  function updateRestoreButton() {
-    const n = savedHandles.length;
-    restoreBtn.hidden = n === 0;
-    restoreBtn.textContent = n === 1 ? 'Reopen last session’s PDF' : 'Reopen last session’s ' + n + ' PDFs';
+  // ---------- Recent ----------
+
+  async function rememberRecent(handle, file) {
+    await ready;
+    let entry = null;
+    for (const r of recents) {
+      try {
+        if (await r.handle.isSameEntry(handle)) { entry = r; break; }
+      } catch (err) { /* stale handle; ignore */ }
+    }
+    if (!entry) entry = { id: 'r' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7) };
+    entry.handle = handle;
+    entry.name = file.name;
+    entry.size = file.size;
+    entry.lastOpened = Date.now();
+    recents = [entry].concat(recents.filter((r) => r !== entry)).slice(0, MAX_RECENTS);
+    store('recents', recents);
+    return entry.id;
   }
 
+  function removeRecent(id) {
+    recents = recents.filter((r) => r.id !== id);
+    store('recents', recents);
+    renderHome();
+  }
+
+  async function openRecent(id) {
+    const entry = recents.find((r) => r.id === id);
+    if (!entry) return;
+
+    const alreadyOpen = tabs.find((t) => t.recentId === id);
+    if (alreadyOpen) {
+      entry.lastOpened = Date.now();
+      recents = [entry].concat(recents.filter((r) => r !== entry));
+      store('recents', recents);
+      activate(alreadyOpen.id);
+      return;
+    }
+
+    try {
+      let permission = await entry.handle.queryPermission({ mode: 'read' });
+      if (permission !== 'granted') permission = await entry.handle.requestPermission({ mode: 'read' });
+      if (permission !== 'granted') {
+        toast('Sureshot PDF needs your permission to read ' + entry.name + '. Click it again and choose Allow.');
+        return;
+      }
+      const file = await entry.handle.getFile();
+      await openAndRemember(file, entry.handle);
+    } catch (err) {
+      if (err && err.name === 'NotFoundError') {
+        removeRecent(id);
+        toast(entry.name + ' was moved, renamed or deleted, so it’s been removed from Recent.');
+      } else {
+        toast('Couldn’t open ' + entry.name + '. ' + (err && err.message ? err.message : ''));
+      }
+    }
+  }
+
+  // ---------- Home rendering ----------
+
+  function startOfDay(time) {
+    const d = new Date(time);
+    d.setHours(0, 0, 0, 0);
+    return d.getTime();
+  }
+  function daysAgo(time) {
+    return Math.round((startOfDay(Date.now()) - startOfDay(time)) / DAY);
+  }
+  function groupLabel(time) {
+    const d = daysAgo(time);
+    if (d <= 0) return 'Today';
+    if (d === 1) return 'Yesterday';
+    if (d < 7) return 'Last 7 days';
+    return 'Older';
+  }
+  function whenText(time) {
+    const date = new Date(time);
+    const clock = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const d = daysAgo(time);
+    if (d <= 1) return 'Opened at ' + clock;
+    if (d < 7) return 'Opened ' + date.toLocaleDateString([], { weekday: 'long' }) + ' at ' + clock;
+    const sameYear = date.getFullYear() === new Date().getFullYear();
+    return 'Opened ' + date.toLocaleDateString([], sameYear ? { day: 'numeric', month: 'short' } : { day: 'numeric', month: 'short', year: 'numeric' });
+  }
+  function sizeText(bytes) {
+    if (typeof bytes !== 'number') return '';
+    if (bytes < 1024 * 1024) return Math.max(1, Math.round(bytes / 1024)) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+  }
+
+  function renderHome() {
+    const hasRecents = recents.length > 0;
+    $('#recentFull').hidden = !hasRecents;
+    $('#recentEmpty').hidden = hasRecents;
+    $('#searchWrap').hidden = recents.length <= 6;
+    clearBtn.hidden = !hasRecents;
+
+    const n = savedSession.length;
+    restoreBtn.hidden = n === 0 || tabs.length > 0;
+    restoreBtn.textContent = n === 1 ? 'Reopen last session’s PDF' : 'Reopen last session’s ' + n + ' PDFs';
+
+    const query = searchEl.value.trim().toLowerCase();
+    const visible = query ? recents.filter((r) => r.name.toLowerCase().includes(query)) : recents;
+
+    groupsEl.replaceChildren();
+    if (hasRecents && visible.length === 0) {
+      const p = document.createElement('p');
+      p.className = 'no-match';
+      p.textContent = 'No recent PDFs match “' + searchEl.value.trim() + '”.';
+      groupsEl.appendChild(p);
+      return;
+    }
+
+    const openIds = new Set(tabs.map((t) => t.recentId).filter(Boolean));
+    const groups = new Map();
+    for (const r of visible) {
+      const label = groupLabel(r.lastOpened);
+      if (!groups.has(label)) groups.set(label, []);
+      groups.get(label).push(r);
+    }
+
+    for (const [label, items] of groups) {
+      const section = document.createElement('section');
+      section.className = 'group';
+      const h2 = document.createElement('h2');
+      h2.textContent = label;
+      const ul = document.createElement('ul');
+      ul.className = 'rows';
+
+      for (const r of items) {
+        const li = document.createElement('li');
+        li.className = 'row';
+
+        const openBtn = document.createElement('button');
+        openBtn.type = 'button';
+        openBtn.className = 'row-open';
+        openBtn.dataset.id = r.id;
+        openBtn.title = 'Open ' + r.name;
+
+        const doc = document.createElement('span');
+        doc.className = 'doc';
+        doc.innerHTML = DOC_ICON;
+
+        const text = document.createElement('span');
+        const name = document.createElement('span');
+        name.className = 'row-name';
+        name.textContent = r.name.replace(/\.pdf$/i, '');
+        const meta = document.createElement('span');
+        meta.className = 'row-meta';
+        meta.textContent = whenText(r.lastOpened);
+        text.append(name, meta);
+
+        const size = document.createElement('span');
+        size.className = 'row-size';
+        size.textContent = sizeText(r.size);
+
+        const state = document.createElement('span');
+        state.className = 'row-state';
+        if (openIds.has(r.id)) {
+          const mark = document.createElement('span');
+          mark.className = 'mark on';
+          mark.setAttribute('aria-hidden', 'true');
+          state.append(mark, document.createTextNode('In a tab'));
+        }
+
+        openBtn.append(doc, text, size, state);
+
+        const remove = document.createElement('button');
+        remove.type = 'button';
+        remove.className = 'row-remove';
+        remove.dataset.id = r.id;
+        remove.title = 'Remove from Recent';
+        remove.setAttribute('aria-label', 'Remove ' + r.name + ' from Recent');
+        remove.innerHTML = CLOSE_ICON;
+
+        li.append(openBtn, remove);
+        ul.appendChild(li);
+      }
+      section.append(h2, ul);
+      groupsEl.appendChild(section);
+    }
+  }
+
+  groupsEl.addEventListener('click', (e) => {
+    const remove = e.target.closest('.row-remove');
+    if (remove) { removeRecent(remove.dataset.id); return; }
+    const open = e.target.closest('.row-open');
+    if (open) openRecent(open.dataset.id);
+  });
+  searchEl.addEventListener('input', renderHome);
+  searchEl.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && searchEl.value) { searchEl.value = ''; renderHome(); }
+  });
+
+  clearBtn.addEventListener('click', () => {
+    if (!window.confirm('Clear the Recent list? Your PDF files won’t be deleted.')) return;
+    recents = [];
+    store('recents', recents);
+    searchEl.value = '';
+    renderHome();
+  });
+
   restoreBtn.addEventListener('click', async () => {
-    const list = savedHandles;
-    savedHandles = [];
-    updateRestoreButton();
+    const list = savedSession;
+    savedSession = [];
+    renderHome();
     let failed = 0;
     for (const handle of list) {
       try {
         let permission = await handle.queryPermission({ mode: 'read' });
         if (permission !== 'granted') permission = await handle.requestPermission({ mode: 'read' });
         if (permission !== 'granted') { failed++; continue; }
-        openFile(await handle.getFile(), handle);
+        await openAndRemember(await handle.getFile(), handle);
       } catch (err) {
         failed++;
       }
@@ -548,13 +885,6 @@
     if (failed === 1) toast('1 PDF couldn’t be reopened. It may have been moved, renamed or deleted.');
     else if (failed > 1) toast(failed + ' PDFs couldn’t be reopened. They may have been moved, renamed or deleted.');
   });
-
-  idb('readonly', (store) => store.get('handles'))
-    .then((handles) => {
-      savedHandles = Array.isArray(handles) ? handles : [];
-      updateRestoreButton();
-    })
-    .catch(() => {});
 
   // ---------- Misc ----------
 
@@ -568,14 +898,19 @@
 
   const installed = window.matchMedia('(display-mode: standalone), (display-mode: window-controls-overlay)').matches;
   $('#hint').textContent = installed
-    ? 'To open a PDF from File Explorer, right-click it, choose Open with, then Sureshot PDF.'
+    ? 'To open a PDF from File Explorer, right-click it, choose Open with, then Sureshot PDF. The Recent list is stored only on this PC.'
     : 'Install Sureshot PDF from the app icon in Edge’s address bar to open PDFs straight from File Explorer.';
 
   if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
     navigator.serviceWorker.register('sw.js').catch(() => {});
   }
 
-  activate(null);
+  activate(HOME);
+  const ready = Promise.all([load('recents').catch(() => null), load('handles').catch(() => null)]).then(([r, h]) => {
+    recents = Array.isArray(r) ? r.filter((x) => x && x.handle && x.id).slice(0, MAX_RECENTS) : [];
+    savedSession = Array.isArray(h) ? h : [];
+    if (activeId === HOME) renderHome();
+  });
 })();
 </script>
 </body>
