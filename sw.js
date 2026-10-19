@@ -1,13 +1,13 @@
 // Sureshot PDF service worker: keeps the app available offline.
 // PDFs are never sent here; they stay in the browser as local data.
-const CACHE = 'sureshot-pdf-v4';
+const CACHE = 'sureshot-pdf-v5';
 const APP_FILES = [
   './',
   './index.html',
   './manifest.webmanifest',
-  './icons/icon-192.png',
-  './icons/icon-512.png',
-  './icons/icon-maskable-512.png'
+  './icons/sureshot-192.png',
+  './icons/sureshot-512.png',
+  './icons/sureshot-maskable-512.png'
 ];
 const LIBRARY_HOST = 'cdnjs.cloudflare.com';
 
